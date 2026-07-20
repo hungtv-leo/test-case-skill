@@ -1,0 +1,15 @@
+# File local tung project (agent sinh ra khi dung skill trong project khac)
+reference.local.md
+
+# Ket qua/artifact khi chay skill
+.report.json
+results.json
+.selftest_tmp/
+*.xlsx
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
