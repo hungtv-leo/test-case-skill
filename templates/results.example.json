@@ -1,0 +1,5 @@
+{
+  "<test id 1>": "passed",
+  "<test id 2>": "failed",
+  "<test id 3>": "skipped"
+}

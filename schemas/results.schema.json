@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://self-test-cases.local/schemas/results.schema.json",
+  "title": "results.json",
+  "description": "Ket qua test chuan cho skill self-test-cases. Key la test id.",
+  "type": "object",
+  "minProperties": 1,
+  "patternProperties": {
+    "^__.*__$": {
+      "type": "string",
+      "description": "Metadata noi bo. Khong phai ket qua test."
+    },
+    "^.+$": {
+      "description": "Ket qua mot test id",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["passed", "failed", "error", "skipped"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "enum": ["passed", "failed", "error", "skipped"]
+            },
+            "status": {
+              "type": "string",
+              "enum": ["passed", "failed", "error", "skipped"]
+            }
+          },
+          "anyOf": [
+            { "required": ["outcome"] },
+            { "required": ["status"] }
+          ]
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

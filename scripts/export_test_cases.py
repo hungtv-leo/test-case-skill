@@ -20,14 +20,27 @@ Exit codes:
     2  -> co case fail/error/khong chay -> KHONG xuat, in danh sach loi
     3  -> loi input (thieu file, sai dinh dang, test id khong khop)
 """
+from __future__ import annotations
+
 import argparse
-import json
 import sys
 from pathlib import Path
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from _lib.outcomes import outcomes_from_flat_map, outcomes_from_pytest_json_report  # noqa: E402
+from _lib.validate import (  # noqa: E402
+    ensure_cases,
+    ensure_results,
+    load_json,
+    validate_cases_results_alignment,
+)
 
 COLUMNS = [
     ("case_id", "Ma case", 14),
@@ -40,50 +53,11 @@ COLUMNS = [
     ("status", "Trang thai", 12),
 ]
 
-_PASS_ALIASES = {"passed", "pass", "ok", "success", "true"}
-
-
-def _load_json(path: str) -> dict:
-    file_path = Path(path)
-    if not file_path.exists():
-        print(f"[ERROR] Khong tim thay file: {path}", file=sys.stderr)
-        sys.exit(3)
-    try:
-        return json.loads(file_path.read_text(encoding="utf-8-sig"))
-    except json.JSONDecodeError as exc:
-        print(f"[ERROR] File JSON khong hop le: {path} ({exc})", file=sys.stderr)
-        sys.exit(3)
-
-
-def _normalize_outcome(value) -> str:
-    text = str(value).strip().lower()
-    return "passed" if text in _PASS_ALIASES else text
-
 
 def _outcomes_from_results(data: dict) -> dict:
-    """Chuan hoa ket qua ve map test id -> outcome, ho tro nhieu dinh dang."""
-    # pytest-json-report
     if isinstance(data, dict) and isinstance(data.get("tests"), list):
-        outcomes = {}
-        for test in data["tests"]:
-            nodeid = test.get("nodeid")
-            if nodeid:
-                outcomes[nodeid] = _normalize_outcome(test.get("outcome", "unknown"))
-        return outcomes
-    # flat map: id -> "passed" hoac id -> {outcome/status}
-    if not isinstance(data, dict):
-        print("[ERROR] results khong hop le: can object {test_id: outcome}", file=sys.stderr)
-        sys.exit(3)
-    outcomes = {}
-    for key, val in data.items():
-        if isinstance(val, str):
-            outcomes[key] = _normalize_outcome(val)
-        elif isinstance(val, dict):
-            raw = val.get("outcome", val.get("status", "unknown"))
-            outcomes[key] = _normalize_outcome(raw)
-        else:
-            outcomes[key] = _normalize_outcome(val)
-    return outcomes
+        return outcomes_from_pytest_json_report(data)
+    return outcomes_from_flat_map(data)
 
 
 def _normalize_cell(value) -> str:
@@ -129,18 +103,30 @@ def main() -> None:
     parser.add_argument("--out", required=True, help="duong dan file .xlsx dau ra")
     args = parser.parse_args()
 
-    outcomes = _outcomes_from_results(_load_json(args.results))
-    cases = _load_json(args.cases)
+    try:
+        raw_results = load_json(args.results)
+        raw_cases = load_json(args.cases)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(3)
+
+    ensure_cases(raw_cases, args.cases)
+    ensure_results(raw_results, args.results)
+    alignment = validate_cases_results_alignment(raw_cases, raw_results)
+    if alignment:
+        print("[ERROR] cases.json va results.json khong khop test id:", file=sys.stderr)
+        for line in alignment:
+            print(line, file=sys.stderr)
+        sys.exit(3)
+
+    outcomes = _outcomes_from_results(raw_results)
+    cases = ensure_cases(raw_cases, args.cases)
 
     rows = []
     problems = []
-    missing_result = []
 
     for test_id, meta in cases.items():
         outcome = outcomes.get(test_id)
-        if outcome is None:
-            missing_result.append(test_id)
-            continue
         row = dict(meta)
         row["case_id"] = meta.get("case_id", test_id)
         row["actual"] = meta.get("expected", "") if outcome == "passed" else f"[{outcome}]"
@@ -148,13 +134,6 @@ def main() -> None:
         rows.append(row)
         if outcome != "passed":
             problems.append((row["case_id"], test_id, outcome))
-
-    if missing_result:
-        print("[ERROR] Cac test id trong cases.json khong co ket qua trong results:", file=sys.stderr)
-        for test_id in missing_result:
-            print(f"  - {test_id}", file=sys.stderr)
-        print("Kiem tra ten test id hoac chay lai test.", file=sys.stderr)
-        sys.exit(3)
 
     if problems:
         print("[FAIL] Con case chua pass -> KHONG xuat Excel. Bao dev sua:", file=sys.stderr)

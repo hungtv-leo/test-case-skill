@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://self-test-cases.local/schemas/cases.schema.json",
+  "title": "cases.json",
+  "description": "Metadata test case cho skill self-test-cases. Key la test id theo framework.",
+  "type": "object",
+  "minProperties": 1,
+  "patternProperties": {
+    "^__.*__$": {
+      "type": "string",
+      "description": "Metadata noi bo (vd __NOTE__). Khong phai test case."
+    },
+    "^.+$": {
+      "type": "object",
+      "required": ["case_id", "description", "precondition", "steps", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Ma case hien thi cho tester, vd TC-01"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Mo ta ngan gon muc tieu test"
+        },
+        "precondition": {
+          "type": "string",
+          "description": "Dieu kien tien de truoc khi chay case"
+        },
+        "steps": {
+          "description": "Cac buoc thuc hien, tester-friendly",
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "data": {
+          "description": "Du lieu dau vao hoac payload mau",
+          "oneOf": [
+            { "type": "object" },
+            { "type": "string" },
+            { "type": "null" }
+          ]
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Ket qua mong doi, ghi ro status/message neu la loi"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

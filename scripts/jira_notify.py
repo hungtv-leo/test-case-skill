@@ -27,19 +27,29 @@ Usage:
 
 Exit codes: 0 OK | 2 con case fail (khong post) | 3 loi input/env | 4 loi goi Jira
 """
+from __future__ import annotations
+
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
 
 import requests
 
-_PASS_ALIASES = {"passed", "pass", "ok", "success", "true"}
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from _lib.outcomes import outcomes_from_flat_map, outcomes_from_pytest_json_report  # noqa: E402
+from _lib.validate import (  # noqa: E402
+    ensure_cases,
+    ensure_results,
+    load_json,
+    validate_cases_results_alignment,
+)
 
 
 def _find_repo_root(start: Path) -> Path:
-    """Leo cay thu muc tim goc repo (co .git hoac .env)."""
     for candidate in [start, *start.parents]:
         if (candidate / ".git").exists() or (candidate / ".env").exists():
             return candidate
@@ -47,10 +57,6 @@ def _find_repo_root(start: Path) -> Path:
 
 
 def _load_env_file(path: Path) -> None:
-    """Nap .env vao os.environ (uu tien python-dotenv; fallback parse tay).
-
-    Khong ghi de bien da co san trong shell.
-    """
     if not path.exists():
         return
     try:
@@ -74,7 +80,6 @@ def _load_env_file(path: Path) -> None:
         pass
 
 
-# Tu nap .env cua project (tim goc repo dong, khong hardcode do sau thu muc).
 _load_env_file(_find_repo_root(Path.cwd()) / ".env")
 
 
@@ -91,7 +96,6 @@ def _base_url() -> str:
 
 
 def _auth_kwargs() -> dict:
-    """Tra ve kwargs cho requests: headers (bearer) hoac auth (basic)."""
     mode = (_env("JIRA_AUTH_MODE", "bearer") or "bearer").lower()
     token = _env("JIRA_TOKEN")
     if not token:
@@ -109,44 +113,13 @@ def _auth_kwargs() -> dict:
     sys.exit(3)
 
 
-def _load_json(path: str) -> dict:
-    p = Path(path)
-    if not p.exists():
-        print(f"[ERROR] Khong tim thay file: {path}", file=sys.stderr)
-        sys.exit(3)
-    try:
-        return json.loads(p.read_text(encoding="utf-8-sig"))
-    except json.JSONDecodeError as exc:
-        print(f"[ERROR] File JSON khong hop le: {path} ({exc})", file=sys.stderr)
-        sys.exit(3)
-
-
-def _normalize_outcome(value) -> str:
-    text = str(value).strip().lower()
-    return "passed" if text in _PASS_ALIASES else text
-
-
 def _outcomes_from_results(data: dict) -> dict:
     if isinstance(data, dict) and isinstance(data.get("tests"), list):
-        return {
-            t.get("nodeid"): _normalize_outcome(t.get("outcome", "unknown"))
-            for t in data["tests"]
-            if t.get("nodeid")
-        }
-    if not isinstance(data, dict):
-        print("[ERROR] results khong hop le: can object {test_id: outcome}", file=sys.stderr)
-        sys.exit(3)
-    outcomes = {}
-    for key, val in data.items():
-        if isinstance(val, dict):
-            outcomes[key] = _normalize_outcome(val.get("outcome", val.get("status", "unknown")))
-        else:
-            outcomes[key] = _normalize_outcome(val)
-    return outcomes
+        return outcomes_from_pytest_json_report(data)
+    return outcomes_from_flat_map(data)
 
 
 def _pass_summary(outcomes: dict, cases: dict):
-    """Tra ve (all_passed, passed, total, problems, case_ids)."""
     total = len(cases)
     passed = 0
     problems = []
@@ -172,14 +145,17 @@ def cmd_check() -> None:
         print(f"[ERROR] Khong ket noi duoc Jira: {exc}", file=sys.stderr)
         sys.exit(4)
     if resp.status_code == 401:
-        print("[ERROR] 401 - Sai credentials hoac auth mode. Neu la Jira Cloud, dung JIRA_AUTH_MODE=basic (email + API token).", file=sys.stderr)
+        print(
+            "[ERROR] 401 - Sai credentials hoac auth mode. Neu la Jira Cloud, dung JIRA_AUTH_MODE=basic (email + API token).",
+            file=sys.stderr,
+        )
         sys.exit(4)
     if resp.status_code >= 400:
         print(f"[ERROR] serverInfo tra {resp.status_code}: {resp.text[:300]}", file=sys.stderr)
         sys.exit(4)
     info = resp.json()
     print("[OK] Ket noi Jira thanh cong.")
-    print(f"  deploymentType: {info.get('deploymentType')}")  # Server | Cloud
+    print(f"  deploymentType: {info.get('deploymentType')}")
     print(f"  version:        {info.get('version')}")
     print(f"  baseUrl:        {info.get('baseUrl')}")
 
@@ -217,8 +193,24 @@ def _upload_attachment(base: str, auth: dict, issue: str, xlsx: str) -> None:
 
 
 def cmd_notify(args) -> None:
-    outcomes = _outcomes_from_results(_load_json(args.results))
-    cases = _load_json(args.cases)
+    try:
+        raw_results = load_json(args.results)
+        raw_cases = load_json(args.cases)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(3)
+
+    ensure_cases(raw_cases, args.cases)
+    ensure_results(raw_results, args.results)
+    alignment = validate_cases_results_alignment(raw_cases, raw_results)
+    if alignment:
+        print("[ERROR] cases.json va results.json khong khop test id:", file=sys.stderr)
+        for line in alignment:
+            print(line, file=sys.stderr)
+        sys.exit(3)
+
+    outcomes = _outcomes_from_results(raw_results)
+    cases = ensure_cases(raw_cases, args.cases)
     all_passed, passed, total, problems, case_ids = _pass_summary(outcomes, cases)
 
     if not all_passed:

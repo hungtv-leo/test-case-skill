@@ -1,54 +1,113 @@
-# Reference (template) - dien vao reference.local.md
+# Reference (template) - điền vào reference.local.md
 
-Day la TEMPLATE. O lan bootstrap (B0), COPY file nay thanh `reference.local.md`
-trong cung thu muc, roi dien thong tin THUC TE cua project. `reference.local.md`
-thuoc project, KHONG sua file template goc.
+Đây là **TEMPLATE**. Ở lần bootstrap (B0), COPY file này thành `reference.local.md`
+trong cùng thư mục skill, rồi điền thông tin **THỰC TẾ** của project. `reference.local.md`
+thuộc project, **KHÔNG** sửa file template gốc.
 
-> Muc tieu: sau khi dien xong, moi lan viet test chi can doc `reference.local.md`
-> la du context, khong phai do lai ca project.
+> Mục tiêu: sau khi điền xong, mỗi lần viết test chỉ cần đọc `reference.local.md`
+> là đủ context, không phải dò lại cả project.
 
 ---
 
-## 1. Stack & lenh (BAT BUOC dien)
+## 1. Stack & lệnh (BẮT BUỘC điền)
 
-- Ngon ngu: `<vd: Python 3.12 / Node 20 / Go 1.22>`
-- Test framework: `<vd: pytest / jest / vitest / go test / JUnit>`
-- Test id la gi: `<vd: pytest nodeid "path::test_name" / jest full test name / "pkg::TestName">`
-- Thu muc test: `<vd: tests/<feature>/ | __tests__/ | ..._test.go>`
-- Lenh chay test 1 feature:
+- Ngôn ngữ: `<vd: Python 3.12 / Node 20 / Go 1.22 / Java 21>`
+- Test framework: `<vd: pytest / jest / vitest / go test / JUnit / Playwright>`
+- Test id là gì: `<vd: pytest nodeid "path::test_name" / jest fullName / "pkg::TestName" / JUnit "class::method">`
+- Thư mục test: `<vd: tests/<feature>/ | __tests__/ | app/routes/__tests__/ | src/test/java/>`
+- Lệnh chạy test 1 feature:
   ```bash
-  <vd: pytest tests/<feature> | npx jest <feature> | go test ./<pkg>/...>
+  <vd: pytest tests/<feature> | npx vitest run <feature> | go test ./<pkg>/...>
   ```
-- Cach xuat results.json chuan (map test id -> passed|failed|error|skipped):
+- Cách xuất `results.json` chuẩn (map test id -> passed|failed|error|skipped):
   ```bash
-  <vd Python: pytest --json-report --json-report-file=.report.json tests/<feature>  (truyen thang .report.json)>
-  <vd khac: chay test --json roi convert sang results.json>
+  # Python + pytest (khuyến dùng)
+  pytest --json-report --json-report-file=.report.json tests/<feature>
+  python .cursor/skills/self-test-cases/scripts/convert_results.py \
+    --framework pytest --input .report.json --output results.json
+
+  # Node + Vitest/Jest
+  npx vitest run <feature> --reporter=json --outputFile=.vitest-report.json
+  python .cursor/skills/self-test-cases/scripts/convert_results.py \
+    --framework vitest --input .vitest-report.json --output results.json
+
+  # Remix unit/integration (Vitest)
+  npx vitest run app/routes/<feature> --reporter=json --outputFile=.vitest-report.json
+  python .cursor/skills/self-test-cases/scripts/convert_results.py \
+    --framework remix --mode unit --input .vitest-report.json --output results.json
+
+  # Remix E2E (Playwright)
+  npx playwright test e2e/<feature> --reporter=json
+  python .cursor/skills/self-test-cases/scripts/convert_results.py \
+    --framework remix --mode e2e --input playwright-report.json --output results.json
+
+  # Go
+  go test ./<pkg>/... -json > .go-report.jsonl
+  python .cursor/skills/self-test-cases/scripts/convert_results.py \
+    --framework go --input .go-report.jsonl --output results.json
+
+  # Spring Boot + JUnit (Maven Surefire XML)
+  mvn -q test -Dtest=<Feature>Test
+  python .cursor/skills/self-test-cases/scripts/convert_results.py \
+    --framework spring-boot --input target/surefire-reports/TEST-*.xml --output results.json
   ```
 
-## 2. Khoi tao app de test (dien)
+---
 
-- App/server factory: `<vd: create_app() trong app/main.py / app express export>`
-- Client goi thu: `<vd: FastAPI TestClient / supertest(app) / httptest>`
-- Env dummy truoc khi import app: `<vd: conftest set os.environ; hoac .env.test>`
+## 2. Ma trận hỗ trợ framework (core)
 
-## 3. Kien truc (dien)
+| Nhóm | Framework | Adapter | Ghi chú |
+|------|-----------|---------|---------|
+| Python | pytest | `pytest` | Hỗ trợ trực tiếp pytest-json-report |
+| Node | jest / vitest | `jest` / `vitest` | Dùng JSON reporter |
+| Remix | vitest + Playwright | `remix` | `--mode unit` hoặc `--mode e2e` |
+| E2E | Playwright | `playwright` | JSON report |
+| Go | go test | `go` | Output `-json` (line-delimited) |
+| Java | Spring Boot + JUnit | `spring-boot` / `junit` | Parse JUnit XML từ Surefire/Gradle |
+
+Framework khác: thêm adapter mới hoặc tự tổng hợp `results.json` theo schema trong `schemas/results.schema.json`.
+
+---
+
+## 3. Quy ước test id & naming
+
+- Test id trong `cases.json` **PHẢI trùng** key trong `results.json`.
+- Đặt tên test rõ ràng theo nhánh logic: `test_<action>_<condition>`.
+- Mỗi nhánh logic quan trọng = 1 test id riêng (happy path, validate lỗi, phân quyền, edge case).
+- Không dùng key metadata dạng `__NOTE__` trong file production (chỉ dùng ở file mẫu).
+
+---
+
+## 4. Khởi tạo app để test (điền)
+
+- App/server factory: `<vd: create_app() trong app/main.py / Remix buildApp / Spring @SpringBootTest>`
+- Client gọi thử: `<vd: FastAPI TestClient / supertest(app) / MockMvc / Playwright page>`
+- Env dummy trước khi import app: `<vd: conftest set os.environ; .env.test; @TestPropertySource>`
+
+---
+
+## 5. Kiến trúc (điền)
 
 - Router/Controller: `<...>`
-- Service: `<vd: static method, async, tra dict {status, success, data}>`
+- Service: `<vd: static method, async, trả dict {status, success, data}>`
 - Repository: `<...>`
-- DB/ket noi ngoai: `<vd: Postgres get_db, Mongo motor, Redis, HTTP client>`
+- DB/kết nối ngoài: `<vd: Postgres get_db, Mongo motor, Redis, HTTP client>`
 
-## 4. Auth / phan quyen (dien)
+---
 
-- Co che: `<vd: dependency get_current_user / middleware JWT>`
-- Cach override user trong test: `<vd: app.dependency_overrides / fixture override_user>`
+## 6. Auth / phân quyền (điền)
 
-## 5. Pattern mock (dien theo project - vi du chung ben duoi)
+- Cơ chế: `<vd: dependency get_current_user / middleware JWT / Spring Security>`
+- Cách override user trong test: `<vd: app.dependency_overrides / fixture override_user / @WithMockUser>`
 
-Nguyen tac: patch tai NOI SU DUNG, khong tai noi dinh nghia. Mock o tang cao nhat
-co the (service) truoc; xuong repository/DB getter khi can.
+---
 
-### Python / pytest (vi du)
+## 7. Pattern mock & fixture (điền theo project)
+
+Nguyên tắc: patch tại **NƠI SỬ DỤNG**, không tại nơi định nghĩa. Mock ở tầng cao nhất
+có thể (service) trước; xuống repository/DB getter khi cần. **KHÔNG** chạm DB/hạ tầng thật.
+
+### Python / pytest
 ```python
 from unittest.mock import AsyncMock, patch
 
@@ -59,28 +118,57 @@ def test_get_ok(client):
     assert r.status_code == 200
 ```
 
-### Node / jest (vi du)
+### Node / jest / vitest
 ```js
-jest.mock("../services/userService");
-const { getInfo } = require("../services/userService");
+vi.mock("../services/userService");
+const { getInfo } = await import("../services/userService");
 getInfo.mockResolvedValue({ id: "1" });
 const res = await request(app).get("/api/v1/users/info");
 expect(res.status).toBe(200);
 ```
 
-### Go (vi du: interface + fake)
+### Remix (loader/action)
+```ts
+import { createRemixStub } from "@remix-run/testing";
+// mock service/repository truoc khi goi loader/action
+```
+
+### Spring Boot + JUnit
+```java
+@WebMvcTest(UserController.class)
+@MockBean
+private UserService userService;
+```
+
+### Go (interface + fake)
 ```go
 svc := &fakeUserService{info: User{ID: "1"}}
 h := NewHandler(svc)
-// goi httptest, assert status
+// gọi httptest, assert status
 ```
 
-## 6. Xu ly loi khoi tao/import (dien neu gap)
+---
 
-`<vd: import app fail vi module DB ket noi luc import -> them env dummy vao conftest; hoac monkeypatch client truoc import>`
+## 8. Codegraph & fallback đọc file
 
-## 7. Vi tri file khi chay skill
+- **Ưu tiên**: dùng codegraph query symbol liên quan (service/repository/router/model).
+- **Bắt buộc hỏi dev** chạy `codegraph init` nếu chưa có `.codegraph/`.
+- **Fallback**: được phép đọc trực tiếp file liên quan khi codegraph thiếu context hoặc dev chưa kịp index.
+- **Không** đọc cả project nếu không cần thiết.
 
-- `cases.json`: dat canh test cua feature, khoa theo test id.
-- `results.json`: tao tam o thu muc goc (hoac .selftest_tmp/), khong commit.
-- Excel ban giao: `.selftest_tmp/handover_<feature>.xlsx`, xoa sau khi len Jira.
+---
+
+## 9. Xử lý lỗi khởi tạo/import (điền nếu gặp)
+
+`<vd: import app fail vì module DB kết nối lúc import -> thêm env dummy vào conftest; hoặc monkeypatch client trước import>`
+
+---
+
+## 10. Vị trí file khi chạy skill
+
+- `cases.json`: đặt cạnh test của feature, khóa theo test id. Validate:
+  ```bash
+  python .cursor/skills/self-test-cases/scripts/validate_test_cases.py --cases <path>/cases.json
+  ```
+- `results.json`: tạo tạm ở thư mục gốc (hoặc `.selftest_tmp/`), không commit.
+- Excel bàn giao: `.selftest_tmp/handover_<feature>.xlsx`, xóa sau khi lên Jira.

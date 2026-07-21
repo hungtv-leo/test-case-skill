@@ -1,27 +1,26 @@
 {
   "tests/register/test_register.py::test_register_success": {
     "case_id": "TC-01",
-    "description": "Dang ky hoc sinh thanh cong khi du dieu kien",
-    "precondition": "Trong thoi gian dang ky; hoc sinh nam trong danh sach; chua dang ky truoc do",
+    "description": "Đăng ký học sinh thành công khi đủ điều kiện",
+    "precondition": "Trong thời gian đăng ký; học sinh nằm trong danh sách; chưa đăng ký trước đó",
     "steps": [
-      "Gui PUT /api/v1/users/sign_up/ voi tnv-token hop le",
-      "Payload chua day du thong tin hoc sinh"
+      "Gửi PUT /api/v1/users/sign_up/ với tnv-token hợp lệ",
+      "Payload chứa đầy đủ thông tin học sinh"
     ],
     "data": {
       "examination_user_number": "123456",
       "image_url": "https://example.com/a.png"
     },
-    "expected": "HTTP 200, status=1, success=true, tra ve data da cap nhat"
+    "expected": "HTTP 200, status=1, success=true, trả về data đã cập nhật"
   },
   "tests/register/test_register.py::test_register_missing_token": {
     "case_id": "TC-02",
-    "description": "Tu choi khi thieu tnv-token",
-    "precondition": "Khong truyen header tnv-token",
+    "description": "Từ chối khi thiếu tnv-token",
+    "precondition": "Không truyền header tnv-token",
     "steps": [
-      "Gui PUT /api/v1/users/sign_up/ khong co header tnv-token"
+      "Gửi PUT /api/v1/users/sign_up/ không có header tnv-token"
     ],
-    "data": "Header tnv-token: (khong co)",
-    "expected": "HTTP 400, success=false, messenger='Bat buoc phai truyen tnv-token'"
-  },
-  "__NOTE__": "Key la TEST ID theo framework cua ban: pytest nodeid 'path::test', jest full test name, hoac 'pkg::TestName' cho Go. Key nay PHAI trung voi key trong results.json. Xoa dong __NOTE__ nay khi dung that."
+    "data": "Header tnv-token: (không có)",
+    "expected": "HTTP 400, success=false, messenger='Bắt buộc phải truyền tnv-token'"
+  }
 }

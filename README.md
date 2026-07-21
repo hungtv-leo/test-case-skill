@@ -1,83 +1,113 @@
 # self-test-cases (portable Cursor skill)
 
-Cursor Agent Skill giup dev tren **moi project**: doc yeu cau tinh nang -> viet
-test-case theo dung test framework cua project -> tu self-test -> bao loi neu con
-case fail -> khi 100% pass thi xuat Excel ban giao tester -> (tuy chon) comment
-ket qua + dinh kem Excel len Jira.
+A Cursor Agent Skill that helps developers on **any project**: read a feature
+requirement → write test cases using the project's own test framework →
+self-test → report failures if any case fails → when 100% pass, export an Excel
+handover file for testers → (optional) comment results and attach the Excel file
+to Jira.
 
-Portable: khong gan cung vao framework nao. Chi tiet rieng cua project duoc agent
-tu detect o lan chay dau va cache vao `reference.local.md`.
+Portable: not tied to any single framework. Project-specific details are detected
+on the first run and cached in `reference.local.md`.
 
-## Cai dat
+## Installation
 
-### Cach 1 - Git clone (khuyen dung, de update)
+### Option 1 - Git clone (recommended, easy to update)
 
-Clone thang vao thu muc skill cua project:
+Clone directly into the project's skill directory:
 
 ```bash
-git clone <URL-repo-nay> .cursor/skills/self-test-cases
+git clone <URL-of-this-repo> .cursor/skills/self-test-cases
 ```
 
-Update ve sau:
+Update later:
 
 ```bash
 cd .cursor/skills/self-test-cases && git pull
 ```
 
-### Cach 2 - Tai file .zip
+### Option 2 - Download .zip
 
-1. Tai file zip cua repo nay, giai nen.
-2. Copy thu muc noi dung vao project sao cho co duong dan:
+1. Download the zip of this repo and extract it.
+2. Copy the contents into the project so this path exists:
    `.cursor/skills/self-test-cases/SKILL.md`
 
-### Sau khi cai (ca 2 cach)
+### After installation (both options)
 
-Cai dependency cho script (chi lan dau):
+Install script dependencies (first time only):
 
 ```bash
 pip install -r .cursor/skills/self-test-cases/scripts/requirements.txt
 ```
 
-(Tuy chon) Cau hinh Jira trong `.env` o goc project neu muon comment ket qua:
+(Optional) Configure Jira in a `.env` file at the project root if you want result
+comments:
 
 ```env
-JIRA_BASE_URL=https://jira.congty.com
+JIRA_BASE_URL=https://jira.company.com
 JIRA_AUTH_MODE=bearer   # bearer = PAT (Server/DC); basic = Cloud (email + API token)
 JIRA_TOKEN=xxxxx
-# JIRA_USER=you@congty.com   # chi can khi JIRA_AUTH_MODE=basic
+# JIRA_USER=you@company.com   # required only when JIRA_AUTH_MODE=basic
 ```
 
-> Khong commit `.env` va file `.xlsx` ban giao.
+> Do not commit `.env` or handover `.xlsx` files.
 
-## Su dung
+## Usage
 
-Trong Cursor, goi skill bang ten (skill dat `disable-model-invocation: true` nen
-chi load khi duoc nhac ten):
+In Cursor, invoke the skill by name (the skill sets `disable-model-invocation: true`,
+so it only loads when mentioned):
 
 ```
-/self-test-cases  Viet test cho tinh nang <mo ta yeu cau>
+/self-test-cases  Write tests for feature <requirement description>
 ```
 
-Lan chay dau, agent se detect stack va tao `reference.local.md`. Cac lan sau doc
-thang file do.
+On the first run, the agent detects the stack and creates `reference.local.md`.
+Later runs read that file directly.
 
-## Cau truc
+## Supported frameworks (core)
+
+| Group | Framework | Adapter | Notes |
+|-------|-----------|---------|-------|
+| Python | pytest | `pytest` | Native pytest-json-report support |
+| Node | jest / vitest | `jest` / `vitest` | JSON reporter |
+| Remix | vitest + Playwright | `remix` | `--mode unit` or `--mode e2e` |
+| E2E | Playwright | `playwright` | JSON report |
+| Go | go test | `go` | `-json` output |
+| Java | Spring Boot + JUnit | `spring-boot` / `junit` | Parse JUnit XML (Surefire/Gradle) |
+
+Other frameworks: build `results.json` yourself from the schema, or add a new
+adapter.
+
+## Structure
 
 ```
 self-test-cases/
-├── SKILL.md               # workflow + huong dan (lop bat bien)
-├── reference.template.md  # template -> copy thanh reference.local.md (lop project)
+├── SKILL.md                    # workflow + guide (stable layer)
+├── reference.template.md       # template -> copied to reference.local.md
+├── schemas/
+│   ├── cases.schema.json       # schema for cases.json
+│   └── results.schema.json     # schema for results.json
 ├── scripts/
-│   ├── export_test_cases.py   # xuat Excel, gate 100% pass
-│   ├── jira_notify.py         # comment + dinh kem len Jira
+│   ├── convert_results.py      # framework adapter -> results.json
+│   ├── validate_test_cases.py  # validate cases/results + alignment
+│   ├── export_test_cases.py    # Excel export, 100% pass gate
+│   ├── jira_notify.py          # comment + attachment to Jira
 │   └── requirements.txt
 └── templates/
-    └── cases.example.json     # mau metadata case (khoa theo test id)
+    ├── cases.example.json      # sample case metadata (keyed by test id)
+    └── results.example.json    # sample results.json format
 ```
 
-## Dinh dang ket qua test (results.json)
+## Data formats
 
-Script doc `results.json` CHUAN, dung cho moi ngon ngu:
+### `cases.json`
+
+Test case metadata, keyed by the framework **test id**. Schema:
+`schemas/cases.schema.json`. Each case includes: `case_id`, `description`,
+`precondition`, `steps`, `data`, `expected`.
+
+### `results.json`
+
+Standard test results format for every language:
 
 ```json
 {
@@ -86,14 +116,26 @@ Script doc `results.json` CHUAN, dung cho moi ngon ngu:
 }
 ```
 
-Gia tri: `passed` | `failed` | `error` | `skipped` (cac bien the pass/ok/success
-duoc chuan hoa). Rieng Python + pytest co the truyen thang file
-`--json-report-file=.report.json`; script tu hieu format pytest-json-report.
+Values: `passed` | `failed` | `error` | `skipped`. For Python + pytest you can
+also pass `--json-report-file=.report.json` directly; the script understands the
+pytest-json-report format.
 
-`cases.json` phai khoa theo cung **test id** voi `results.json`.
+### Convert framework results
 
-## Ghi chu
+```bash
+python .cursor/skills/self-test-cases/scripts/convert_results.py \
+  --framework vitest --input .vitest-report.json --output results.json
+```
 
-- File `reference.local.md` la rieng cua tung project -> nen commit vao project
-  do, KHONG commit nguoc lai repo skill.
-- Khong dat skill trong `~/.cursor/skills-cursor/` (chi danh cho Cursor).
+### Validate before Excel export
+
+```bash
+python .cursor/skills/self-test-cases/scripts/validate_test_cases.py \
+  --cases tests/feature/cases.json --results results.json
+```
+
+## Notes
+
+- `reference.local.md` is project-specific → commit it in that project,
+  **do not** commit it back into the skill repo.
+- Do not place this skill under `~/.cursor/skills-cursor/` (reserved for Cursor).
