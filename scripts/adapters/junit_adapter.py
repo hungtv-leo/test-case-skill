@@ -1,7 +1,11 @@
-"""Adapter JUnit XML (Spring Boot / Maven Surefire / Gradle) -> results.json chuan."""
+"""Adapter JUnit XML (Spring Boot / Maven Surefire / Gradle) -> results.json chuan.
+
+Ho tro 1 file, nhieu file, hoac glob (vd target/surefire-reports/TEST-*.xml).
+"""
 
 from __future__ import annotations
 
+import glob as _glob
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -39,9 +43,24 @@ def convert_xml(root: ET.Element) -> dict:
     return outcomes
 
 
-def convert_file(path: str | Path) -> dict:
-    root = ET.parse(path).getroot()
-    outcomes = convert_xml(root)
+def _expand_paths(pattern: str | Path) -> list[Path]:
+    pattern_str = str(pattern)
+    path = Path(pattern_str)
+    if path.is_dir():
+        return sorted(path.glob("*.xml"))
+    if any(ch in pattern_str for ch in "*?[]"):
+        return sorted(Path(p) for p in _glob.glob(pattern_str))
+    return [path] if path.exists() else []
+
+
+def convert_file(pattern: str | Path) -> dict:
+    files = _expand_paths(pattern)
+    if not files:
+        raise ValueError(f"JUnit XML khong tim thay file khop: {pattern}")
+    outcomes: dict = {}
+    for file_path in files:
+        root = ET.parse(file_path).getroot()
+        outcomes.update(convert_xml(root))
     if not outcomes:
         raise ValueError("JUnit XML khong co testcase nao")
     return outcomes

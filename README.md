@@ -19,16 +19,13 @@ Open a terminal at your **target project root** (the app you want to test), then
 run:
 
 ```powershell
-# 1) Create skill folder
-New-Item -ItemType Directory -Force -Path .cursor\skills | Out-Null
+# 1) Install RUNTIME skill only (no maintainer tests, no .git)
+irm https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/install.ps1 | iex
 
-# 2) Download skill only (shallow clone)
-git clone --depth 1 https://github.com/hungtv-leo/test-case-skill.git .cursor/skills/self-test-cases
-
-# 3) Install skill script dependencies (user-level, does NOT touch project deps)
+# 2) Install skill script dependencies (user-level, does NOT touch project deps)
 pip install --user -r .cursor\skills\self-test-cases\scripts\requirements.txt
 
-# 4) (Recommended) Install + wire CodeGraph for Cursor, then index this project
+# 3) (Recommended) Install + wire CodeGraph for Cursor, then index this project
 #    Skip if `codegraph` is already installed and `.codegraph/` is indexed.
 irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex
 # Open a NEW terminal after CLI install, then:
@@ -37,11 +34,22 @@ codegraph init
 # If folder exists but index is empty:
 # codegraph index
 
-# 5) Verify skill install
+# 4) Verify skill install
 Test-Path .cursor\skills\self-test-cases\SKILL.md
 ```
 
-If step 5 prints `True`, **restart Cursor** (so CodeGraph MCP loads), open the
+macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/install.sh | bash
+pip install --user -r .cursor/skills/self-test-cases/scripts/requirements.txt
+```
+
+The installer copies **only** files listed in `install.manifest` (skill docs,
+schemas, adapters, templates). It does **not** copy `scripts/tests/`, `.git`,
+or other maintainer-only clutter into your project.
+
+If step 4 prints `True`, **restart Cursor** (so CodeGraph MCP loads), open the
 project, and run:
 
 ```text
@@ -76,36 +84,45 @@ cd C:\path\to\your-project
 You must be at the project root (where `README`, `package.json`, `pyproject.toml`,
 `go.mod`, etc. usually live).
 
-### Step 2 — Download the skill into Cursor skills folder
+### Step 2 — Install the skill (runtime only)
 
-**Option A — Git clone (recommended)**
+**Option A — Installer (recommended)**
+
+Downloads the repo, then copies **only** runtime files into
+`.cursor/skills/self-test-cases/` (see `install.manifest`). Maintainer unit
+tests (`scripts/tests/`) and `.git` are **not** installed.
+
+```powershell
+# From target project root
+irm https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/install.ps1 | iex
+```
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/install.sh | bash
+```
+
+From a local skill checkout (offline / before GitHub update):
+
+```powershell
+# Run inside the skill repo, point at your app
+.\install.ps1 -ProjectRoot C:\path\to\your-app
+```
+
+**Option B — Full git clone (contributors / debugging only)**
+
+Use this only if you need the full repository (including `scripts/tests/`).
+Prefer Option A for normal project use.
 
 ```powershell
 New-Item -ItemType Directory -Force -Path .cursor\skills | Out-Null
 git clone --depth 1 https://github.com/hungtv-leo/test-case-skill.git .cursor/skills/self-test-cases
 ```
 
-macOS / Linux:
-
-```bash
-mkdir -p .cursor/skills
-git clone --depth 1 https://github.com/hungtv-leo/test-case-skill.git .cursor/skills/self-test-cases
-```
-
-**Option B — ZIP (no nested `.git`)**
-
-1. Download: https://github.com/hungtv-leo/test-case-skill/archive/refs/heads/main.zip
-2. Extract the zip.
-3. Rename the extracted folder to `self-test-cases`.
-4. Move it so this file exists:
-
-```text
-your-project/.cursor/skills/self-test-cases/SKILL.md
-```
-
 ### Step 3 — Confirm folder layout
 
-After install you should have:
+After a **runtime** install you should have:
 
 ```text
 your-project/
@@ -115,8 +132,10 @@ your-project/
             ├── SKILL.md
             ├── README.md
             ├── reference.template.md
+            ├── install.manifest
+            ├── install.ps1 / install.sh
             ├── schemas/
-            ├── scripts/
+            ├── scripts/          # adapters + CLI (NO scripts/tests)
             ├── templates/
             └── workdir/
 ```
@@ -125,6 +144,7 @@ Check:
 
 ```powershell
 Test-Path .cursor\skills\self-test-cases\SKILL.md
+Test-Path .cursor\skills\self-test-cases\scripts\tests   # should be False
 Get-ChildItem .cursor\skills\self-test-cases
 ```
 
@@ -143,6 +163,17 @@ pip install --user -r .cursor\skills\self-test-cases\scripts\requirements-jira.t
 
 Core packages: `openpyxl`, `jsonschema`  
 Optional Jira packages: `requests`, `python-dotenv`
+
+> **Running tests is separate from skill scripts.** Use the project's own test
+> runner / virtualenv to run tests. For Python + pytest, install the JSON report
+> plugin so `--json-report` works:
+>
+> ```powershell
+> pip install pytest pytest-json-report
+> ```
+>
+> For Node/Go/Java, use the project's existing test tooling (vitest/jest, `go test`,
+> Maven/Gradle). The skill only needs the resulting report to convert.
 
 ### Step 5 — Install CodeGraph (recommended)
 
@@ -440,8 +471,29 @@ python .cursor\skills\self-test-cases\scripts\validate_test_cases.py `
 
 ## Notes
 
+- Prefer the **installer** (`install.ps1` / `install.sh`) so only runtime files
+  land in the project. Full `git clone` into `.cursor/skills/` also pulls
+  maintainer tests — avoid that for normal use.
 - Install **only** this skill into `.cursor/skills/self-test-cases/`.
 - Do **not** mix skill Python packages into the app's dependency files.
 - Do **not** place this skill under `~/.cursor/skills-cursor/` (reserved for Cursor).
-- `reference.local.md` is project-specific; do not commit it back into the skill repo.
+- **Do NOT commit** anything under `.cursor/skills/self-test-cases/` into the target
+  project — not the skill files, not `reference.local.md`, not `workdir/`. Treat it
+  as local/personal tooling. Add `.cursor/skills/self-test-cases/` to the project
+  `.gitignore`.
 - Do not commit `.env`, Excel handover files, or `workdir/` runtime outputs.
+
+## For skill maintainers
+
+Clone the full repo if you need to change adapters or run unit tests:
+
+```powershell
+git clone https://github.com/hungtv-leo/test-case-skill.git
+cd test-case-skill
+pip install -r scripts/requirements.txt
+pytest scripts/tests
+```
+
+Runtime packaging is controlled by `install.manifest`. If you add a new script
+or adapter that end users need, **add its path to that file**.
+

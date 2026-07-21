@@ -1,5 +1,6 @@
 {
-  "tests/register/test_register.py::test_register_success": {
+  "__NOTE__": "Key la TEST ID theo framework: pytest nodeid tinh tu cwd (goc project). Vi test nam trong workdir nen nodeid gom ca duong dan .cursor/skills/self-test-cases/workdir/. Key nay PHAI trung key trong results.json. Xoa dong __NOTE__ khi dung that.",
+  ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_success": {
     "case_id": "TC-01",
     "description": "Đăng ký học sinh thành công khi đủ điều kiện",
     "precondition": "Trong thời gian đăng ký; học sinh nằm trong danh sách; chưa đăng ký trước đó",
@@ -13,7 +14,7 @@
     },
     "expected": "HTTP 200, status=1, success=true, trả về data đã cập nhật"
   },
-  "tests/register/test_register.py::test_register_missing_token": {
+  ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_missing_token": {
     "case_id": "TC-02",
     "description": "Từ chối khi thiếu tnv-token",
     "precondition": "Không truyền header tnv-token",

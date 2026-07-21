@@ -24,7 +24,7 @@ project vào `reference.local.md` để không phải dò lại mỗi lần.
 
 | Artifact skill sinh ra | Path BẮT BUỘC | CẤM ghi ở |
 |------------------------|---------------|-----------|
-| `reference.local.md` | `$SKILL_ROOT/reference.local.md` | gốc project |
+| `reference.local.md` | `$SKILL_ROOT/reference.local.md` | gốc project (KHÔNG commit) |
 | Test files | `$SKILL_ROOT/workdir/tests/<feature>/` | `tests/` của project |
 | `cases.json` | `$SKILL_ROOT/workdir/tests/<feature>/cases.json` | `tests/...` ngoài workdir |
 | `pytest.ini` / `conftest.py` / config tạm | `$SKILL_ROOT/workdir/` | gốc project |
@@ -39,17 +39,21 @@ Nếu không → **đừng tạo**, sửa path rồi mới ghi.
 ```
 .cursor/skills/self-test-cases/
 ├── SKILL.md
-├── reference.local.md          # cache project (OK commit vào project nếu cần)
-└── workdir/                    # TOÀN BỘ output tạm (gitignore)
+├── reference.local.md          # cache project (KHÔNG commit)
+└── workdir/                    # TOÀN BỘ output tạm (gitignore, KHÔNG commit)
     ├── tests/<feature>/
     │   ├── test_*.py
     │   └── cases.json
-    ├── pytest.ini              # nếu cần
+    ├── pytest.ini              # chỉ nếu cần (xem lưu ý rootdir ở B3)
     ├── .report.json
     ├── results.json
     └── .selftest_tmp/
         └── handover_<feature>.xlsx
 ```
+
+> **KHÔNG commit** bất kỳ thứ gì trong `.cursor/skills/self-test-cases/`
+> (cả skill lẫn `reference.local.md`, `workdir/`). Đây là artifact cá nhân/tạm.
+> Nếu cần, thêm dòng `.cursor/skills/self-test-cases/` vào `.gitignore` của project.
 
 ## Portable hoạt động thế nào
 
@@ -73,7 +77,7 @@ export/Jira chỉ đọc `results.json` + `cases.json` nên dùng được cho m
 | Remix | vitest + Playwright | `remix` | `--mode unit` hoặc `--mode e2e` |
 | E2E | Playwright | `playwright` | JSON report |
 | Go | go test | `go` | `go test -json` |
-| Java | Spring Boot + JUnit | `spring-boot` | JUnit XML Surefire/Gradle |
+| Java | Spring Boot + JUnit | `spring-boot` / `junit` | JUnit XML Surefire/Gradle (hỗ trợ glob) |
 
 Mẫu format: [templates/cases.example.json](templates/cases.example.json),
 [templates/results.example.json](templates/results.example.json).
@@ -169,16 +173,25 @@ Chỉ đọc file trực tiếp khi codegraph không đủ context.
   - `tests/` (ngoài workdir)
   - `pytest.ini`, `conftest.py` ở root
   - `package.json` / jest / vitest config của project
-- Khi chạy test: chạy từ **gốc project**, trỏ path vào workdir, set `PYTHONPATH=.`
-  (hoặc tương đương) để import được code app.
+- Khi chạy test: LUÔN chạy từ **gốc project** (không `cd` vào workdir), chỉ trỏ
+  path test vào workdir. Import code app qua `PYTHONPATH`/pythonpath trỏ về gốc project.
 
-Ví dụ pytest:
+**LƯU Ý pytest (tránh lỗi import / rootdir):**
+- Cần cài plugin: `pip install --user pytest-json-report` (hoặc dùng venv của project).
+- KHÔNG đặt `pytest.ini` ở gốc project. Nếu cần config, đặt trong `workdir/`
+  NHƯNG phải set `pythonpath` trỏ về gốc project, vì `pytest.ini` sẽ đổi `rootdir`.
+- An toàn nhất: không dùng `pytest.ini`, truyền cờ trực tiếp và ép rootdir về gốc project.
+- Test id (nodeid) = **đường dẫn tính từ cwd** (gốc project). Vì test nằm trong
+  workdir nên nodeid sẽ có tiền tố `.cursor/skills/self-test-cases/workdir/...`.
+  `cases.json` PHẢI dùng đúng nodeid này (verbatim), nếu không validate/export fail.
+
+Ví dụ pytest (chạy từ gốc project):
 
 ```bash
-# Từ gốc project
-pytest .cursor/skills/self-test-cases/workdir/tests/<feature> \
-  -o pythonpath=. \
-  --json-report --json-report-file=.cursor/skills/self-test-cases/workdir/.report.json
+WORKDIR=.cursor/skills/self-test-cases/workdir
+pytest $WORKDIR/tests/<feature> \
+  --rootdir=. -o pythonpath=. \
+  --json-report --json-report-file=$WORKDIR/.report.json
 ```
 
 - Viết test theo đúng framework + pattern mock trong `reference.local.md`. Mỗi
@@ -186,6 +199,7 @@ pytest .cursor/skills/self-test-cases/workdir/tests/<feature> \
   lỗi validate + phân quyền + edge case.
 - Song song, tạo `cases.json` **cạnh test trong workdir**, KHÓA theo **test id**
   (nodeid pytest / fullName vitest / package::Test go / class::method JUnit...).
+  Test id phải TRÙNG verbatim với id do framework sinh ra.
   Schema: [schemas/cases.schema.json](schemas/cases.schema.json). Mẫu:
   [templates/cases.example.json](templates/cases.example.json).
 
@@ -200,7 +214,7 @@ QUAN TRỌNG - `steps`/`data`/`expected` phải TESTER-FRIENDLY (người test �
 
 ### B4: Self-test → results.json chuẩn
 
-Chạy test trong **workdir** (xem lệnh trong `reference.local.md`), rồi tạo
+Chạy test từ **gốc project** (test files nằm trong `workdir/`), rồi tạo
 `results.json` theo ĐỊNH DẠNG CHUẨN dưới:
 `.cursor/skills/self-test-cases/workdir/results.json`.
 Schema: [schemas/results.schema.json](schemas/results.schema.json).

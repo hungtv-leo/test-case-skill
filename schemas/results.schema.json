@@ -10,7 +10,7 @@
       "type": "string",
       "description": "Metadata noi bo. Khong phai ket qua test."
     },
-    "^.+$": {
+    "^(?!__.*__$).+$": {
       "description": "Ket qua mot test id",
       "oneOf": [
         {

@@ -40,12 +40,11 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from _lib.outcomes import outcomes_from_flat_map, outcomes_from_pytest_json_report  # noqa: E402
+from _lib.outcomes import outcomes_from_any, pass_summary  # noqa: E402
 from _lib.validate import (  # noqa: E402
     ensure_cases,
-    ensure_results,
     load_json,
-    validate_cases_results_alignment,
+    validate_outcomes_alignment,
 )
 
 
@@ -113,28 +112,6 @@ def _auth_kwargs() -> dict:
     sys.exit(3)
 
 
-def _outcomes_from_results(data: dict) -> dict:
-    if isinstance(data, dict) and isinstance(data.get("tests"), list):
-        return outcomes_from_pytest_json_report(data)
-    return outcomes_from_flat_map(data)
-
-
-def _pass_summary(outcomes: dict, cases: dict):
-    total = len(cases)
-    passed = 0
-    problems = []
-    case_ids = []
-    for test_id, meta in cases.items():
-        cid = meta.get("case_id", test_id)
-        case_ids.append(cid)
-        outcome = outcomes.get(test_id)
-        if outcome == "passed":
-            passed += 1
-        else:
-            problems.append((cid, test_id, outcome or "no-result"))
-    return passed == total and total > 0, passed, total, problems, case_ids
-
-
 def cmd_check() -> None:
     base = _base_url()
     auth = _auth_kwargs()
@@ -200,18 +177,21 @@ def cmd_notify(args) -> None:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(3)
 
-    ensure_cases(raw_cases, args.cases)
-    ensure_results(raw_results, args.results)
-    alignment = validate_cases_results_alignment(raw_cases, raw_results)
+    cases = ensure_cases(raw_cases, args.cases)
+    try:
+        outcomes = outcomes_from_any(raw_results)
+    except ValueError as exc:
+        print(f"[ERROR] {args.results}: {exc}", file=sys.stderr)
+        sys.exit(3)
+
+    alignment = validate_outcomes_alignment(cases, outcomes)
     if alignment:
-        print("[ERROR] cases.json va results.json khong khop test id:", file=sys.stderr)
+        print("[ERROR] cases.json va results khong khop test id:", file=sys.stderr)
         for line in alignment:
             print(line, file=sys.stderr)
         sys.exit(3)
 
-    outcomes = _outcomes_from_results(raw_results)
-    cases = ensure_cases(raw_cases, args.cases)
-    all_passed, passed, total, problems, case_ids = _pass_summary(outcomes, cases)
+    all_passed, passed, total, problems, case_ids = pass_summary(outcomes, cases)
 
     if not all_passed:
         print("[FAIL] Con case chua pass -> KHONG post len Jira:", file=sys.stderr)

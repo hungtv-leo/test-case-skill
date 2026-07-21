@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -22,32 +23,26 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from _lib.validate import load_json, validate_results  # noqa: E402
-from adapters import FRAMEWORKS, GO_LINE_FORMATS  # noqa: E402
-from adapters import go_adapter, junit_adapter  # noqa: E402
+from adapters import FRAMEWORKS  # noqa: E402
+from adapters import go_adapter, junit_adapter, remix_adapter  # noqa: E402
+
+_JUNIT_KEYS = {"junit", "spring", "spring-boot"}
+_GO_KEYS = {"go", "gotest"}
 
 
-def _load_input(path: Path, framework: str):
-    if framework in GO_LINE_FORMATS:
-        return go_adapter.convert_file(path)
-    if framework in {"junit", "spring", "spring-boot"}:
-        return junit_adapter.convert_file(path)
-    suffix = path.suffix.lower()
-    if suffix in {".xml"}:
-        return junit_adapter.convert_file(path)
-    data = load_json(path)
-    return data
-
-
-def _convert(framework: str, data, mode: str | None = None) -> dict:
+def _convert(framework: str, input_arg: str, mode: str | None = None) -> dict:
     key = framework.lower()
     if key not in FRAMEWORKS:
         supported = ", ".join(sorted(FRAMEWORKS))
         raise ValueError(f"Framework khong ho tro: {framework}. Ho tro: {supported}")
-    if key in GO_LINE_FORMATS or key in {"junit", "spring", "spring-boot"}:
-        return data
+    # Cac framework doc thang tu file/glob (khong qua load_json)
+    if key in _JUNIT_KEYS:
+        return junit_adapter.convert_file(input_arg)
+    if key in _GO_KEYS:
+        return go_adapter.convert_file(input_arg)
+    # Con lai: doc JSON roi convert
+    data = load_json(input_arg)
     if key == "remix":
-        from adapters import remix_adapter
-
         return remix_adapter.convert(data, mode=mode or "auto")
     return FRAMEWORKS[key](data)
 
@@ -65,16 +60,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    input_path = Path(args.input)
-    if not input_path.exists():
+    framework = args.framework.lower()
+    is_glob = any(ch in args.input for ch in "*?[]")
+    if not is_glob and not Path(args.input).exists():
         print(f"[ERROR] Khong tim thay file: {args.input}", file=sys.stderr)
         sys.exit(3)
 
-    framework = args.framework.lower()
     try:
-        loaded = _load_input(input_path, framework)
-        outcomes = _convert(framework, loaded, mode=args.mode)
-    except (ValueError, FileNotFoundError) as exc:
+        outcomes = _convert(framework, args.input, mode=args.mode)
+    except (ValueError, FileNotFoundError, OSError, ET.ParseError, AttributeError, KeyError) as exc:
         print(f"[ERROR] Convert that bai: {exc}", file=sys.stderr)
         sys.exit(3)
 

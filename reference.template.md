@@ -20,18 +20,21 @@ thuộc project, **KHÔNG** sửa file template gốc.
   `<vd: tests/<feature>/ | __tests__/ | ...>`
 - Lệnh chạy test 1 feature (từ **gốc project**, trỏ vào workdir):
   ```bash
-  <vd: pytest .cursor/skills/self-test-cases/workdir/tests/<feature> -o pythonpath=.>
+  <vd: pytest .cursor/skills/self-test-cases/workdir/tests/<feature> --rootdir=. -o pythonpath=.>
   ```
 - Cách xuất `results.json` chuẩn (map test id -> passed|failed|error|skipped):
   ```bash
   WORKDIR=.cursor/skills/self-test-cases/workdir
 
-  # Python + pytest (khuyến dùng)
-  pytest $WORKDIR/tests/<feature> -o pythonpath=. \
+  # Python + pytest (khuyến dùng). Can: pip install pytest-json-report
+  # Chay tu goc project. --rootdir=. de nodeid tinh tu goc project.
+  pytest $WORKDIR/tests/<feature> --rootdir=. -o pythonpath=. \
     --json-report --json-report-file=$WORKDIR/.report.json
   python .cursor/skills/self-test-cases/scripts/convert_results.py \
     --framework pytest --input $WORKDIR/.report.json --output $WORKDIR/results.json
   ```
+  > Nodeid pytest se co tien to `.cursor/skills/self-test-cases/workdir/...`.
+  > Dung dung nodeid nay lam key trong cases.json.
 
 ---
 

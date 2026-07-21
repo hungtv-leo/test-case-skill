@@ -1,5 +1,5 @@
 {
-  "<test id 1>": "passed",
-  "<test id 2>": "failed",
-  "<test id 3>": "skipped"
+  "__NOTE__": "Key PHAI trung test id trong cases.json. Gia tri: passed|failed|error|skipped. Xoa dong __NOTE__ khi dung that.",
+  ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_success": "passed",
+  ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_missing_token": "passed"
 }

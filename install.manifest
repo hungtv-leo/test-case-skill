@@ -1,0 +1,39 @@
+# Runtime files copied into a target project.
+# One path per line (relative to skill repo root).
+# Lines starting with # are comments. Globs are NOT supported — list files explicitly.
+# Keep this list lean: end users must NOT receive maintainer-only files (scripts/tests, etc.).
+
+SKILL.md
+README.md
+reference.template.md
+.gitignore
+install.manifest
+install.ps1
+install.sh
+
+schemas/cases.schema.json
+schemas/results.schema.json
+
+scripts/requirements.txt
+scripts/requirements-jira.txt
+scripts/convert_results.py
+scripts/export_test_cases.py
+scripts/jira_notify.py
+scripts/validate_test_cases.py
+
+scripts/_lib/__init__.py
+scripts/_lib/outcomes.py
+scripts/_lib/validate.py
+
+scripts/adapters/__init__.py
+scripts/adapters/pytest_adapter.py
+scripts/adapters/jest_adapter.py
+scripts/adapters/playwright_adapter.py
+scripts/adapters/go_adapter.py
+scripts/adapters/junit_adapter.py
+scripts/adapters/remix_adapter.py
+
+templates/cases.example.json
+templates/results.example.json
+
+workdir/README.md

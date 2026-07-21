@@ -43,16 +43,23 @@ def validate_results(data: dict) -> list[str]:
 
 
 def validate_cases_results_alignment(cases: dict, results: dict) -> list[str]:
-    case_ids = set(filter_test_entries(cases).keys())
-    result_ids = set(filter_test_entries(results).keys())
+    return validate_outcomes_alignment(
+        filter_test_entries(cases), filter_test_entries(results)
+    )
+
+
+def validate_outcomes_alignment(cases: dict, outcomes: dict) -> list[str]:
+    """So khop test id giua cases (metadata map) va outcomes (da chuan hoa)."""
+    case_ids = set(cases.keys())
+    result_ids = set(outcomes.keys())
     problems = []
     missing = sorted(case_ids - result_ids)
     extra = sorted(result_ids - case_ids)
     if missing:
-        problems.append("cases.json co test id khong co trong results.json:")
+        problems.append("cases.json co test id khong co trong results:")
         problems.extend(f"  - {test_id}" for test_id in missing)
     if extra:
-        problems.append("results.json co test id khong co trong cases.json:")
+        problems.append("results co test id khong co trong cases.json:")
         problems.extend(f"  - {test_id}" for test_id in extra)
     return problems
 

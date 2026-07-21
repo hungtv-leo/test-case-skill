@@ -35,6 +35,8 @@ def convert_from_lines(lines: list[str]) -> dict:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(event, dict):
+            continue
         if event.get("Action") == "run" or event.get("action") == "run":
             package = event.get("Package") or event.get("package") or package
         parsed = _parse_event(event, package, event.get("Test") or event.get("test") or "")
@@ -54,4 +56,7 @@ def convert(data) -> dict:
 
 def convert_file(path: str | Path) -> dict:
     text = Path(path).read_text(encoding="utf-8-sig")
+    stripped = text.lstrip()
+    if stripped.startswith("["):
+        return convert(json.loads(text))
     return convert_from_lines(text.splitlines())

@@ -10,7 +10,7 @@
       "type": "string",
       "description": "Metadata noi bo (vd __NOTE__). Khong phai test case."
     },
-    "^.+$": {
+    "^(?!__.*__$).+$": {
       "type": "object",
       "required": ["case_id", "description", "precondition", "steps", "expected"],
       "additionalProperties": false,

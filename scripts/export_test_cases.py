@@ -34,30 +34,23 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from _lib.outcomes import outcomes_from_flat_map, outcomes_from_pytest_json_report  # noqa: E402
+from _lib.outcomes import outcomes_from_any  # noqa: E402
 from _lib.validate import (  # noqa: E402
     ensure_cases,
-    ensure_results,
     load_json,
-    validate_cases_results_alignment,
+    validate_outcomes_alignment,
 )
 
 COLUMNS = [
-    ("case_id", "Ma case", 14),
-    ("description", "Mo ta", 40),
-    ("precondition", "Dieu kien tien de", 30),
-    ("steps", "Cac buoc", 45),
-    ("data", "Du lieu", 30),
-    ("expected", "Ket qua mong doi", 35),
-    ("actual", "Ket qua thuc te", 35),
-    ("status", "Trang thai", 12),
+    ("case_id", "Mã case", 14),
+    ("description", "Mô tả", 40),
+    ("precondition", "Điều kiện tiên đề", 30),
+    ("steps", "Các bước", 45),
+    ("data", "Dữ liệu", 30),
+    ("expected", "Kết quả mong đợi", 35),
+    ("actual", "Kết quả thực tế", 35),
+    ("status", "Trạng thái", 12),
 ]
-
-
-def _outcomes_from_results(data: dict) -> dict:
-    if isinstance(data, dict) and isinstance(data.get("tests"), list):
-        return outcomes_from_pytest_json_report(data)
-    return outcomes_from_flat_map(data)
 
 
 def _normalize_cell(value) -> str:
@@ -110,17 +103,19 @@ def main() -> None:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(3)
 
-    ensure_cases(raw_cases, args.cases)
-    ensure_results(raw_results, args.results)
-    alignment = validate_cases_results_alignment(raw_cases, raw_results)
+    cases = ensure_cases(raw_cases, args.cases)
+    try:
+        outcomes = outcomes_from_any(raw_results)
+    except ValueError as exc:
+        print(f"[ERROR] {args.results}: {exc}", file=sys.stderr)
+        sys.exit(3)
+
+    alignment = validate_outcomes_alignment(cases, outcomes)
     if alignment:
-        print("[ERROR] cases.json va results.json khong khop test id:", file=sys.stderr)
+        print("[ERROR] cases.json va results khong khop test id:", file=sys.stderr)
         for line in alignment:
             print(line, file=sys.stderr)
         sys.exit(3)
-
-    outcomes = _outcomes_from_results(raw_results)
-    cases = ensure_cases(raw_cases, args.cases)
 
     rows = []
     problems = []

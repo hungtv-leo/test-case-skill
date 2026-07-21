@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-_PASS_ALIASES = {"passed", "pass", "ok", "success", "true"}
-_FAIL_ALIASES = {"failed", "fail", "false"}
-_ERROR_ALIASES = {"error", "errored", "broken"}
-_SKIP_ALIASES = {"skipped", "skip", "pending", "disabled"}
+_PASS_ALIASES = {"passed", "pass", "ok", "success", "true", "expected"}
+_FAIL_ALIASES = {"failed", "fail", "false", "timedout", "unexpected", "flaky"}
+_ERROR_ALIASES = {"error", "errored", "broken", "interrupted"}
+_SKIP_ALIASES = {"skipped", "skip", "pending", "disabled", "todo"}
 
 
 def normalize_outcome(value) -> str:
@@ -52,3 +52,37 @@ def outcomes_from_pytest_json_report(data: dict) -> dict:
         if nodeid:
             outcomes[nodeid] = normalize_outcome(test.get("outcome", "unknown"))
     return outcomes
+
+
+def outcomes_from_any(data: dict) -> dict:
+    """Chuan hoa moi dinh dang input ve map test_id -> outcome.
+
+    - pytest-json-report (dict co key 'tests' la list)
+    - flat map { test_id: "passed" | {"outcome"/"status": ...} }
+    """
+    if isinstance(data, dict) and isinstance(data.get("tests"), list):
+        return outcomes_from_pytest_json_report(data)
+    if not isinstance(data, dict):
+        raise ValueError("results khong hop le: can object {test_id: outcome}")
+    return outcomes_from_flat_map(data)
+
+
+def pass_summary(outcomes: dict, cases: dict):
+    """Tra ve (all_passed, passed, total, problems, case_ids).
+
+    `cases` la map test_id -> metadata (da loc metadata key).
+    `problems` la list (case_id, test_id, outcome-hoac-'no-result').
+    """
+    total = len(cases)
+    passed = 0
+    problems = []
+    case_ids = []
+    for test_id, meta in cases.items():
+        cid = meta.get("case_id", test_id) if isinstance(meta, dict) else test_id
+        case_ids.append(cid)
+        outcome = outcomes.get(test_id)
+        if outcome == "passed":
+            passed += 1
+        else:
+            problems.append((cid, test_id, outcome or "no-result"))
+    return passed == total and total > 0, passed, total, problems, case_ids
