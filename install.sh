@@ -101,14 +101,17 @@ if [[ ! -f "$DEST/SKILL.md" ]]; then
   echo "Install failed: SKILL.md missing at $DEST" >&2
   exit 1
 fi
-if [[ -d "$DEST/scripts/tests" ]]; then
-  echo "Install polluted: scripts/tests should not be copied." >&2
-  exit 1
-fi
+
+for rel in scripts/tests README.md install.ps1 install.sh install.manifest .gitignore .git; do
+  if [[ -e "$DEST/$rel" ]]; then
+    echo "Install polluted: unexpected path copied: $rel" >&2
+    exit 1
+  fi
+done
 
 echo
 echo "[OK] Installed runtime skill -> $DEST"
-echo "     Files: ${COUNT} (maintainer tests NOT included)"
+echo "     ${COUNT} skill files only (no README/install/tests/.git)"
 echo
 echo "Next:"
 echo "  pip install --user -r \"$DEST/scripts/requirements.txt\""

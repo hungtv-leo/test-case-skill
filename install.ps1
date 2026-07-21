@@ -93,22 +93,33 @@ try {
 
     Copy-RuntimeFiles -FromRoot $from -ToRoot $dest -RelPaths $files
 
-    # Ensure sandbox folder exists for generated artifacts
-    $workdir = Join-Path $dest "workdir"
-    New-Item -ItemType Directory -Force -Path $workdir | Out-Null
+    # Sandbox for generated artifacts (empty; agent fills it at runtime)
+    New-Item -ItemType Directory -Force -Path (Join-Path $dest "workdir") | Out-Null
 
     $skillOk = Test-Path -LiteralPath (Join-Path $dest "SKILL.md")
-    $testsPresent = Test-Path -LiteralPath (Join-Path $dest "scripts\tests")
     if (-not $skillOk) {
         throw "Install failed: SKILL.md missing at $dest"
     }
-    if ($testsPresent) {
-        throw "Install polluted: scripts/tests should not be copied."
+
+    # Guard against shipping clutter into projects
+    $forbidden = @(
+        "scripts\tests",
+        "README.md",
+        "install.ps1",
+        "install.sh",
+        "install.manifest",
+        ".gitignore",
+        ".git"
+    )
+    foreach ($rel in $forbidden) {
+        if (Test-Path -LiteralPath (Join-Path $dest $rel)) {
+            throw "Install polluted: unexpected path copied: $rel"
+        }
     }
 
     Write-Host ""
     Write-Host "[OK] Installed runtime skill -> $dest"
-    Write-Host "     Files: $($files.Count) (maintainer tests NOT included)"
+    Write-Host "     $($files.Count) skill files only (no README/install/tests/.git)"
     Write-Host ""
     Write-Host "Next:"
     Write-Host "  pip install --user -r `"$dest\scripts\requirements.txt`""

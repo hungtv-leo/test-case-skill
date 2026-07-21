@@ -1,15 +1,9 @@
-# Runtime files copied into a target project.
-# One path per line (relative to skill repo root).
-# Lines starting with # are comments. Globs are NOT supported — list files explicitly.
-# Keep this list lean: end users must NOT receive maintainer-only files (scripts/tests, etc.).
+# Runtime files copied into a target project by install.ps1 / install.sh.
+# Keep this list minimal: only what Cursor + skill scripts need to run.
+# Do NOT list installer/docs/maintainer files (README, install.*, scripts/tests, .git).
 
 SKILL.md
-README.md
 reference.template.md
-.gitignore
-install.manifest
-install.ps1
-install.sh
 
 schemas/cases.schema.json
 schemas/results.schema.json
@@ -35,5 +29,3 @@ scripts/adapters/remix_adapter.py
 
 templates/cases.example.json
 templates/results.example.json
-
-workdir/README.md

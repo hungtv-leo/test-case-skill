@@ -45,9 +45,9 @@ curl -fsSL https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/ins
 pip install --user -r .cursor/skills/self-test-cases/scripts/requirements.txt
 ```
 
-The installer copies **only** files listed in `install.manifest` (skill docs,
-schemas, adapters, templates). It does **not** copy `scripts/tests/`, `.git`,
-or other maintainer-only clutter into your project.
+The installer copies **only** runtime skill files (`SKILL.md`, schemas, scripts,
+templates, `reference.template.md`). It does **not** copy README, install
+scripts, `scripts/tests/`, `.git`, or other repo clutter into your project.
 
 If step 4 prints `True`, **restart Cursor** (so CodeGraph MCP loads), open the
 project, and run:
@@ -122,7 +122,7 @@ git clone --depth 1 https://github.com/hungtv-leo/test-case-skill.git .cursor/sk
 
 ### Step 3 — Confirm folder layout
 
-After a **runtime** install you should have:
+After a **runtime** install you should have **only**:
 
 ```text
 your-project/
@@ -130,21 +130,23 @@ your-project/
     └── skills/
         └── self-test-cases/
             ├── SKILL.md
-            ├── README.md
             ├── reference.template.md
-            ├── install.manifest
-            ├── install.ps1 / install.sh
             ├── schemas/
             ├── scripts/          # adapters + CLI (NO scripts/tests)
             ├── templates/
-            └── workdir/
+            └── workdir/          # empty sandbox (filled when skill runs)
 ```
+
+**Not** installed into the project: `README.md`, `install.ps1` / `install.sh`,
+`install.manifest`, `.gitignore`, `scripts/tests/`, `.git`.
 
 Check:
 
 ```powershell
-Test-Path .cursor\skills\self-test-cases\SKILL.md
-Test-Path .cursor\skills\self-test-cases\scripts\tests   # should be False
+Test-Path .cursor\skills\self-test-cases\SKILL.md          # True
+Test-Path .cursor\skills\self-test-cases\README.md         # False
+Test-Path .cursor\skills\self-test-cases\install.ps1       # False
+Test-Path .cursor\skills\self-test-cases\scripts\tests     # False
 Get-ChildItem .cursor\skills\self-test-cases
 ```
 
