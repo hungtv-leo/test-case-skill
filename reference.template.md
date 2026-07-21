@@ -14,42 +14,23 @@ thuộc project, **KHÔNG** sửa file template gốc.
 - Ngôn ngữ: `<vd: Python 3.12 / Node 20 / Go 1.22 / Java 21>`
 - Test framework: `<vd: pytest / jest / vitest / go test / JUnit / Playwright>`
 - Test id là gì: `<vd: pytest nodeid "path::test_name" / jest fullName / "pkg::TestName" / JUnit "class::method">`
-- Thư mục test: `<vd: tests/<feature>/ | __tests__/ | app/routes/__tests__/ | src/test/java/>`
-- Lệnh chạy test 1 feature:
+- Thư mục test **của skill** (sandbox, BẮT BUỘC):
+  `.cursor/skills/self-test-cases/workdir/tests/<feature>/`
+- Thư mục test chuẩn của project (chỉ để tham khảo pattern, KHÔNG ghi vào đây trừ khi user yêu cầu promote):
+  `<vd: tests/<feature>/ | __tests__/ | ...>`
+- Lệnh chạy test 1 feature (từ **gốc project**, trỏ vào workdir):
   ```bash
-  <vd: pytest tests/<feature> | npx vitest run <feature> | go test ./<pkg>/...>
+  <vd: pytest .cursor/skills/self-test-cases/workdir/tests/<feature> -o pythonpath=.>
   ```
 - Cách xuất `results.json` chuẩn (map test id -> passed|failed|error|skipped):
   ```bash
+  WORKDIR=.cursor/skills/self-test-cases/workdir
+
   # Python + pytest (khuyến dùng)
-  pytest --json-report --json-report-file=.report.json tests/<feature>
+  pytest $WORKDIR/tests/<feature> -o pythonpath=. \
+    --json-report --json-report-file=$WORKDIR/.report.json
   python .cursor/skills/self-test-cases/scripts/convert_results.py \
-    --framework pytest --input .report.json --output results.json
-
-  # Node + Vitest/Jest
-  npx vitest run <feature> --reporter=json --outputFile=.vitest-report.json
-  python .cursor/skills/self-test-cases/scripts/convert_results.py \
-    --framework vitest --input .vitest-report.json --output results.json
-
-  # Remix unit/integration (Vitest)
-  npx vitest run app/routes/<feature> --reporter=json --outputFile=.vitest-report.json
-  python .cursor/skills/self-test-cases/scripts/convert_results.py \
-    --framework remix --mode unit --input .vitest-report.json --output results.json
-
-  # Remix E2E (Playwright)
-  npx playwright test e2e/<feature> --reporter=json
-  python .cursor/skills/self-test-cases/scripts/convert_results.py \
-    --framework remix --mode e2e --input playwright-report.json --output results.json
-
-  # Go
-  go test ./<pkg>/... -json > .go-report.jsonl
-  python .cursor/skills/self-test-cases/scripts/convert_results.py \
-    --framework go --input .go-report.jsonl --output results.json
-
-  # Spring Boot + JUnit (Maven Surefire XML)
-  mvn -q test -Dtest=<Feature>Test
-  python .cursor/skills/self-test-cases/scripts/convert_results.py \
-    --framework spring-boot --input target/surefire-reports/TEST-*.xml --output results.json
+    --framework pytest --input $WORKDIR/.report.json --output $WORKDIR/results.json
   ```
 
 ---
@@ -164,11 +145,22 @@ h := NewHandler(svc)
 
 ---
 
-## 10. Vị trí file khi chạy skill
+## 10. Vị trí file khi chạy skill (sandbox)
 
-- `cases.json`: đặt cạnh test của feature, khóa theo test id. Validate:
-  ```bash
-  python .cursor/skills/self-test-cases/scripts/validate_test_cases.py --cases <path>/cases.json
-  ```
-- `results.json`: tạo tạm ở thư mục gốc (hoặc `.selftest_tmp/`), không commit.
-- Excel bàn giao: `.selftest_tmp/handover_<feature>.xlsx`, xóa sau khi lên Jira.
+Tất cả artifact skill sinh ra nằm trong:
+`.cursor/skills/self-test-cases/workdir/`
+
+- Test + `cases.json`: `workdir/tests/<feature>/`
+- Config tạm (`pytest.ini`, ...): chỉ trong `workdir/`, **không** ở gốc project
+- `results.json` / report: `workdir/`
+- Excel bàn giao: `workdir/.selftest_tmp/handover_<feature>.xlsx` (xóa sau khi lên Jira)
+
+Validate:
+
+```bash
+python .cursor/skills/self-test-cases/scripts/validate_test_cases.py \
+  --cases .cursor/skills/self-test-cases/workdir/tests/<feature>/cases.json \
+  --results .cursor/skills/self-test-cases/workdir/results.json
+```
+
+`workdir/` đã có trong `.gitignore` của skill → không commit nhầm.

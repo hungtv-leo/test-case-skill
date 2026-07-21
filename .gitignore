@@ -1,7 +1,11 @@
 # File local tung project (agent sinh ra khi dung skill trong project khac)
 reference.local.md
 
-# Ket qua/artifact khi chay skill
+# Sandbox: TOAN BO artifact skill sinh ra (KHONG commit)
+workdir/*
+!workdir/README.md
+
+# Ket qua/artifact (fallback patterns)
 .report.json
 results.json
 .selftest_tmp/
