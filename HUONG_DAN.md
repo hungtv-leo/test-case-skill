@@ -65,7 +65,7 @@ Luồng đúng:
 ```text
 Mở Cursor / terminal tại gốc project đích
   → cài runtime skill (install.ps1)
-  → pip install --user (deps của skill, không đụng venv app)
+  → cài deps skill (xem Bước 3: có .venv thì KHÔNG dùng --user)
   → CodeGraph CLI + index project
   → Restart Cursor
   → Gọi /self-test-cases
@@ -110,34 +110,44 @@ Hoặc cài vào thư mục hiện tại từ source local:
 
 Cài lại = **xóa rồi copy mới** thư mục `.cursor/skills/self-test-cases/`. Artifact trong `workdir/` sẽ mất — copy Excel ra ngoài trước nếu cần giữ.
 
-### Bước 3 — Cài Python deps của skill (máy user)
+### Bước 3 — Cài Python deps của skill
 
-**Không** nhét vào venv / `requirements.txt` / `poetry.lock` / `package.json` của app.
+Gói bắt buộc: `openpyxl`, `jsonschema`. **Không** thêm chúng vào `requirements.txt` / `poetry.lock` / `package.json` của app.
 
-Nếu đang trong venv của project:
+Nhìn prompt terminal: có `(.venv)` hay không.
 
-```powershell
-deactivate
+**A. Prompt đang có `(.venv)` — cài vào venv, bỏ `--user`**
+
+Đây là trường hợp project Python (vd. `cms-trang-nguyen-api`). Pip **từ chối** `--user` vì user site-packages không nhìn thấy trong venv:
+
+```text
+ERROR: Can not perform a '--user' install. User site-packages are not visible in this virtualenv.
 ```
 
-Rồi:
+Đừng `deactivate`. Chạy đúng:
+
+```powershell
+pip install -r .cursor\skills\self-test-cases\scripts\requirements.txt
+```
+
+Jira (nếu dùng):
+
+```powershell
+pip install -r .cursor\skills\self-test-cases\scripts\requirements-jira.txt
+```
+
+`.venv` đã gitignore — gói nằm local trên máy, không commit vào lockfile app. Agent sau này cũng dùng Python của venv nên **phải** cài vào đây, nếu không `export_test_cases.py` sẽ thiếu `openpyxl`.
+
+**B. Không dùng venv — mới dùng `--user`**
 
 ```powershell
 pip install --user -r .cursor\skills\self-test-cases\scripts\requirements.txt
 ```
 
-Hoặc chắc chắn dùng Python 3.10+:
+Python 3.10+ chắc chắn:
 
 ```powershell
 py -3 -m pip install --user -r .cursor\skills\self-test-cases\scripts\requirements.txt
-```
-
-Gói bắt buộc: `openpyxl`, `jsonschema`.
-
-Chỉ khi dùng Jira:
-
-```powershell
-pip install --user -r .cursor\skills\self-test-cases\scripts\requirements-jira.txt
 ```
 
 > Chạy **test của app** thì dùng runner/venv của **app**, không dùng deps skill. Python + pytest cần thêm plugin JSON report:
@@ -258,7 +268,7 @@ Thêm vào `.gitignore` của **app** (không phải của repo skill):
 | Sai | Đúng |
 |-----|------|
 | `git clone` cả repo vào `.cursor/skills/self-test-cases` khi dùng hàng ngày | Dùng `install.ps1` (chỉ runtime) |
-| `pip install -r ...` trong venv của app | `pip install --user ...` sau khi `deactivate` |
+| `pip install --user` khi prompt có `(.venv)` | Bỏ `--user`, cài vào venv đang bật; **không** ghi vào `requirements.txt` của app |
 | Commit `.cursor/skills/self-test-cases/` / Excel / `.env` | Thêm gitignore như Bước 6 |
 | Đặt skill vào `%USERPROFILE%\.cursor\skills-cursor\` | Path đúng: `project\.cursor\skills\self-test-cases\` |
 | `cd .cursor\skills\self-test-cases` rồi `git pull` sau khi cài bằng installer | Thư mục đó **không có `.git`**. Cập nhật = chạy lại `install.ps1` |
@@ -483,7 +493,8 @@ Bản cài bằng installer **không có `.git`**. Đừng `git pull` trong `.cu
 
 ```powershell
 irm https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/install.ps1 | iex
-pip install --user -r .cursor\skills\self-test-cases\scripts\requirements.txt
+# Có (.venv): bỏ --user. Không venv: thêm --user.
+pip install -r .cursor\skills\self-test-cases\scripts\requirements.txt
 ```
 
 Installer **xóa rồi cài lại** thư mục skill → `workdir/` bị mất. Copy Excel ra ngoài trước nếu cần giữ.
@@ -503,8 +514,8 @@ codegraph upgrade
 | `SKILL.md` không thấy | Đứng đúng gốc app; `Test-Path .cursor\skills\self-test-cases\SKILL.md` |
 | `/self-test-cases` không có trong Cursor | Restart / Reload Window; đúng path `.cursor/skills/self-test-cases/SKILL.md`; gõ đúng slash command |
 | `irm \| iex` bị chặn | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
-| `python` / `pip` không nhận, hoặc sai version | `py -3 --version` phải ≥ 3.10; dùng `py -3 -m pip install --user ...` |
-| `pip` cài vào venv app | `deactivate` rồi `pip install --user ...` |
+| `python` / `pip` không nhận, hoặc sai version | `py -3 --version` phải ≥ 3.10; không venv thì `py -3 -m pip install --user ...` |
+| `Can not perform a '--user' install` | Prompt đang `(.venv)` → bỏ `--user`: `pip install -r ...\scripts\requirements.txt` |
 | `codegraph` không có lệnh | Chạy lại installer CodeGraph; **mở terminal mới**; `codegraph --version` |
 | CodeGraph “chỉ `.gitignore`” / chưa index | `codegraph index` (hoặc `codegraph init`) tại gốc app |
 | CodeGraph MCP chưa nối trong Cursor | `codegraph install --target=cursor --yes`, restart Cursor |
@@ -523,7 +534,8 @@ Tại gốc project đích:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hungtv-leo/test-case-skill/main/install.sh | bash
-pip install --user -r .cursor/skills/self-test-cases/scripts/requirements.txt
+# Có (.venv): bỏ --user. Không venv: thêm --user.
+pip install -r .cursor/skills/self-test-cases/scripts/requirements.txt
 ```
 
 Từ checkout local:
