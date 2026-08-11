@@ -14,6 +14,8 @@ on the first run and cached in `reference.local.md`.
 
 **GitHub:** https://github.com/hungtv-leo/test-case-skill
 
+Nội bộ (tiếng Việt, Windows-first): [HUONG_DAN.md](HUONG_DAN.md)
+
 ---
 
 ## Quick start (Windows / PowerShell)
