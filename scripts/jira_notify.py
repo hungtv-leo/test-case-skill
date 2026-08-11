@@ -1,7 +1,8 @@
 """Comment ket qua self-test len Jira va dinh kem file Excel (portable).
 
-CHI post khi TAT CA case pass (giong gate cua export). Ho tro Jira Server/DC
-(PAT/Bearer) va Jira Cloud (email + API token qua Basic).
+CHI post khi moi case coverage=verified deu pass. Gap/rui ro KHONG block
+(ban giao kem danh sach gap cho tester). Ho tro Jira Server/DC (PAT/Bearer)
+va Jira Cloud (email + API token qua Basic).
 
 Ket qua test (--results) chap nhan 2 dinh dang giong export_test_cases.py:
     1. results.json CHUAN: { "<test id>": "passed" | "failed" | ... }
@@ -40,7 +41,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
-from _lib.outcomes import outcomes_from_any, pass_summary  # noqa: E402
+from _lib.outcomes import outcomes_from_any, partition_cases, verified_gate_summary  # noqa: E402
 from _lib.validate import (  # noqa: E402
     ensure_cases,
     load_json,
@@ -186,26 +187,32 @@ def cmd_notify(args) -> None:
 
     alignment = validate_outcomes_alignment(cases, outcomes)
     if alignment:
-        print("[ERROR] cases.json va results khong khop test id:", file=sys.stderr)
+        print("[ERROR] cases.json va results khong khop (verified bat buoc co ket qua):", file=sys.stderr)
         for line in alignment:
             print(line, file=sys.stderr)
         sys.exit(3)
 
-    all_passed, passed, total, problems, case_ids = pass_summary(outcomes, cases)
+    all_ok, passed, total, problems, case_ids, gap_count = verified_gate_summary(outcomes, cases)
 
-    if not all_passed:
-        print("[FAIL] Con case chua pass -> KHONG post len Jira:", file=sys.stderr)
+    if not all_ok:
+        print("[FAIL] Con case VERIFIED chua pass -> KHONG post len Jira:", file=sys.stderr)
         for cid, test_id, outcome in problems:
             print(f"  - {cid} ({test_id}): {outcome}", file=sys.stderr)
         sys.exit(2)
 
+    _, gaps = partition_cases(cases)
+    gap_ids = [meta.get("case_id", tid) for tid, meta in gaps.items()]
     feature = args.feature or "feature"
     xlsx_name = Path(args.xlsx).name if args.xlsx else "(khong co file)"
-    ids_str = ", ".join(case_ids)
+    ids_str = ", ".join(case_ids) if case_ids else "(khong co verified)"
+    gap_str = ", ".join(gap_ids) if gap_ids else "(khong co)"
     body = (
-        f"*[Self-test] {feature}*: {passed}/{total} case PASS.\n"
+        f"*[Self-test] {feature}*: verified {passed}/{total} PASS"
+        + (f"; gap/rui ro: {gap_count}." if gap_count else ".")
+        + "\n"
         f"File ban giao: {xlsx_name}" + (" (dinh kem)." if args.xlsx else ".") + "\n"
-        f"Danh sach case: {ids_str}"
+        f"Verified: {ids_str}\n"
+        f"Gap/rui ro (tester can check): {gap_str}"
     )
 
     base = _base_url()

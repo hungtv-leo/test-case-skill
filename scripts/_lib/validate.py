@@ -8,7 +8,7 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
-from .outcomes import filter_test_entries
+from .outcomes import filter_test_entries, partition_cases
 
 _SCHEMA_DIR = Path(__file__).resolve().parents[2] / "schemas"
 
@@ -49,15 +49,19 @@ def validate_cases_results_alignment(cases: dict, results: dict) -> list[str]:
 
 
 def validate_outcomes_alignment(cases: dict, outcomes: dict) -> list[str]:
-    """So khop test id giua cases (metadata map) va outcomes (da chuan hoa)."""
-    case_ids = set(cases.keys())
-    result_ids = set(outcomes.keys())
+    """So khop id: verified BAT BUOC co trong results; gap duoc phep thieu.
+
+    - Thieu verified trong results -> loi
+    - Thua id trong results (khong co trong cases) -> loi
+    - Gap khong co trong results -> OK (chua automate)
+    """
+    verified, _gaps = partition_cases(cases)
     problems = []
-    missing = sorted(case_ids - result_ids)
-    extra = sorted(result_ids - case_ids)
-    if missing:
-        problems.append("cases.json co test id khong co trong results:")
-        problems.extend(f"  - {test_id}" for test_id in missing)
+    missing_verified = sorted(set(verified.keys()) - set(outcomes.keys()))
+    extra = sorted(set(outcomes.keys()) - set(cases.keys()))
+    if missing_verified:
+        problems.append("cases verified thieu ket qua trong results:")
+        problems.extend(f"  - {test_id}" for test_id in missing_verified)
     if extra:
         problems.append("results co test id khong co trong cases.json:")
         problems.extend(f"  - {test_id}" for test_id in extra)

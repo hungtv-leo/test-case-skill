@@ -1,253 +1,178 @@
 ---
 name: self-test-cases
 description: >-
-  Đọc yêu cầu tính năng, viết test-case tự động theo test framework của project,
-  tự self-test, báo lỗi cho dev nếu còn case fail/chưa hoàn thiện, và xuất file
-  Excel bàn giao cho tester khi tất cả case pass; tùy chọn comment kết quả +
-  đính kèm Excel lên Jira. Portable - dùng được cho mọi project (Python/Node/Go/
-  Java/Remix/...). Use when the user asks to write test cases, self-test a feature,
-  verify a task, or export test cases for handover / bàn giao tester. Ưu tiên
-  dùng codegraph để lấy context liên quan, giảm token.
+  Từ code tính năng mới: tìm case có thể xảy ra (kể cả case “không thể ngờ tới”)
+  mà code chưa check, tự verify các nhánh đã có, bàn giao Excel cho tester
+  (sheet Đã verify + Gap - Rủi ro), tùy chọn comment Jira. Không phải self-test
+  chất lượng code/coverage %. Portable (Python/Node/Go/Java/Remix/...). Use when
+  user asks to write test cases, self-test a feature, hunt unchecked scenarios,
+  verify a task, or export handover for tester / bàn giao tester. Ưu tiên codegraph.
 disable-model-invocation: true
 ---
 
-# Self-test cases (portable)
+# Self-test cases (gap-hunt + bàn giao tester)
 
-Hỗ trợ dev trên MỌI project: đọc yêu cầu → viết test-case (dùng đúng framework
-của project) → tự self-test → báo lỗi hoặc xuất Excel bàn giao → (tùy chọn)
-comment lên Jira. Mục tiêu MINIMIZE token: ưu tiên codegraph, và cache thông tin
-project vào `reference.local.md` để không phải dò lại mỗi lần.
+## Sứ mệnh (ĐỌC TRƯỚC)
 
-## Artifact map (BẮT BUỘC) — mọi thứ skill gen ra đều trong folder skill
+Skill này **KHÔNG** nhằm:
+- Đo coverage %, style, refactor, “viết unit test cho có”.
+- Chỉ assert đúng behavior hiện tại rồi đóng băng bug.
+
+Skill này **NHẰM**:
+1. Đọc **code tính năng mới** (+ yêu cầu nếu có).
+2. Suy ra các tình huống **thật sự có thể xảy ra** (user / data / state / race…).
+3. Phân loại:
+   - `verified` — code **đã** có nhánh xử lý → viết test tự động, **phải pass**.
+   - `gap` / `exploratory` / `needs-product-decision` — case có thể xảy ra nhưng
+     **code chưa check / chưa rõ** → ghi nhận cho **tester + dev**, kèm bằng chứng code.
+4. Bàn giao Excel **2 sheet**: Đã verify + Gap - Rủi ro.
+
+> Gap **không** chặn bàn giao. Chỉ case `verified` fail mới chặn Excel/Jira.
+
+## Artifact map (BẮT BUỘC)
 
 `SKILL_ROOT` = `.cursor/skills/self-test-cases`
 
-| Artifact skill sinh ra | Path BẮT BUỘC | CẤM ghi ở |
-|------------------------|---------------|-----------|
-| `reference.local.md` | `$SKILL_ROOT/reference.local.md` | gốc project (KHÔNG commit) |
-| Test files | `$SKILL_ROOT/workdir/tests/<feature>/` | `tests/` của project |
-| `cases.json` | `$SKILL_ROOT/workdir/tests/<feature>/cases.json` | `tests/...` ngoài workdir |
-| `pytest.ini` / `conftest.py` / config tạm | `$SKILL_ROOT/workdir/` | gốc project |
-| `.report.json` / vitest/jest report | `$SKILL_ROOT/workdir/` | gốc project |
-| `results.json` | `$SKILL_ROOT/workdir/results.json` | gốc project |
-| Excel / `.selftest_tmp/` | `$SKILL_ROOT/workdir/.selftest_tmp/` | gốc project |
-
-Trước khi tạo bất kỳ file nào: path phải bắt đầu bằng
-`.cursor/skills/self-test-cases/` (workdir hoặc reference.local.md).
-Nếu không → **đừng tạo**, sửa path rồi mới ghi.
+| Artifact | Path BẮT BUỘC | CẤM ghi ở |
+|----------|---------------|-----------|
+| `reference.local.md` | `$SKILL_ROOT/reference.local.md` | gốc project |
+| Test files | `$SKILL_ROOT/workdir/tests/<feature>/` | `tests/` project |
+| `cases.json` | `$SKILL_ROOT/workdir/tests/<feature>/cases.json` | ngoài workdir |
+| Report / `results.json` | `$SKILL_ROOT/workdir/` | gốc project |
+| Excel / `gaps.json` | `$SKILL_ROOT/workdir/.selftest_tmp/` | gốc project |
 
 ```
 .cursor/skills/self-test-cases/
 ├── SKILL.md
 ├── reference.local.md          # cache project (KHÔNG commit)
-└── workdir/                    # TOÀN BỘ output tạm (gitignore, KHÔNG commit)
+└── workdir/
     ├── tests/<feature>/
-    │   ├── test_*.py
+    │   ├── test_*.py           # chỉ cho case verified (và gap nếu automate được)
     │   └── cases.json
-    ├── pytest.ini              # chỉ nếu cần (xem lưu ý rootdir ở B3)
     ├── .report.json
-    ├── results.json
+    ├── results.json            # chỉ bắt buộc cho verified
     └── .selftest_tmp/
-        └── handover_<feature>.xlsx
+        ├── handover_<feature>.xlsx
+        └── gaps_<feature>.json
 ```
 
-> **KHÔNG commit** bất kỳ thứ gì trong `.cursor/skills/self-test-cases/`
-> (cả skill lẫn `reference.local.md`, `workdir/`). Đây là artifact cá nhân/tạm.
-> Nếu cần, thêm dòng `.cursor/skills/self-test-cases/` vào `.gitignore` của project.
+> **KHÔNG commit** `.cursor/skills/self-test-cases/`. Thêm vào `.gitignore` của project.
 
-## Portable hoạt động thế nào
+## 2 lớp case
 
-Skill này KHÔNG gắn cứng vào framework nào. Có 2 lớp:
-- **Lớp bất biến** (có sẵn trong skill): workflow, schema `cases.json`/`results.json`,
-  script convert/validate/export/Jira.
-- **Lớp theo project** (agent tự sinh lần đầu): framework test, lệnh chạy test,
-  cách mock, kiến trúc → ghi vào `reference.local.md` (thuộc project, không sửa
-  file gốc của skill).
+| coverage | Ý nghĩa | Key trong cases.json | Có trong results.json? | Gate Excel |
+|----------|---------|----------------------|------------------------|------------|
+| `verified` | Code đã check; có test tự động | Test id framework (nodeid/fullName/…) | **Bắt buộc**, phải `passed` | Fail → **chặn** |
+| `gap` | Có thể xảy ra; code chưa xử lý rõ | `gap:<case_id>` hoặc test id nếu đã viết test fail | Tuỳ chọn | **Không chặn** |
+| `exploratory` | Cần tester khám phá trên môi trường thật | `gap:<case_id>` | Tuỳ chọn | Không chặn |
+| `needs-product-decision` | Chưa rõ expected đúng/sai — hỏi PO/dev | `gap:<case_id>` | Tuỳ chọn | Không chặn |
 
-Điểm nối 2 lớp: agent chạy test bằng framework của project, convert kết quả về
-`results.json` theo ĐỊNH DẠNG CHUẨN (dùng `convert_results.py` nếu cần). Script
-export/Jira chỉ đọc `results.json` + `cases.json` nên dùng được cho mọi ngôn ngữ.
+Field bắt buộc mọi case: `case_id`, `description`, `precondition`, `steps`,
+`expected`, `coverage`.
 
-## Ma trận hỗ trợ framework (core)
+Field bắt buộc với gap/exploratory/needs-product-decision: `code_evidence`, `risk`.
 
-| Nhóm | Framework | Adapter | Ghi chú |
-|------|-----------|---------|---------|
-| Python | pytest | `pytest` | pytest-json-report |
-| Node | jest / vitest | `jest` / `vitest` | JSON reporter |
-| Remix | vitest + Playwright | `remix` | `--mode unit` hoặc `--mode e2e` |
-| E2E | Playwright | `playwright` | JSON report |
-| Go | go test | `go` | `go test -json` |
-| Java | Spring Boot + JUnit | `spring-boot` / `junit` | JUnit XML Surefire/Gradle (hỗ trợ glob) |
+Khuyến dùng: `category`, `priority` (`P0`–`P3`), `tester_note`.
 
-Mẫu format: [templates/cases.example.json](templates/cases.example.json),
-[templates/results.example.json](templates/results.example.json).
+`category`: `happy` | `validate` | `auth` | `state` | `race` | `boundary` |
+`side-effect` | `dependency` | `other`.
+
+## Checklist “case không thể ngờ tới” (BẮT BUỘC quét ở B2.5)
+
+Sau khi đọc code, agent **phải** đi qua checklist; mỗi mục thiếu trong code →
+tạo case `gap` (hoặc `needs-product-decision` nếu chưa rõ expected):
+
+1. **Input bẩn**: null, `""`, khoảng trắng, sai type, thiếu field, field thừa,
+   enum lạ, Unicode/emoji, độ dài max+1.
+2. **Boundary**: 0, âm, max int, ngày hết hạn ±1s, timezone.
+3. **State**: gọi 2 lần (idempotent?), session hết giữa chừng, soft-delete,
+   data cũ sau update, thứ tự bước đảo.
+4. **Auth/ACL**: thiếu token, hết hạn, đúng token sai role, IDOR (đổi id người khác).
+5. **Luồng / race**: double-submit, 2 request song song, retry sau timeout.
+6. **Phụ thuộc ngoài**: timeout, 5xx, payload lệch schema.
+7. **Side-effect**: ghi DB một phần, gửi mail/notify 2 lần, cache stale.
+
+**CẤM** chỉ liệt kê happy path + 1–2 validate rồi dừng.
 
 ## Workflow
 
-Copy checklist này và cập nhật khi làm:
-
 ```
-- [ ] B0: Bootstrap - detect stack, viết reference.local.md (chỉ lần đầu)
-- [ ] B1: Đọc yêu cầu dev paste
-- [ ] B2: Dùng codegraph lấy code liên quan (KHÔNG đọc cả project)
-- [ ] B3: Viết test-case + cases.json (khóa theo test id)
-- [ ] B4: Chạy test (self-test) -> convert/tao results.json chuẩn
-- [ ] B4b: Validate cases.json + results.json (khuyến dùng)
-- [ ] B5: Nếu còn fail/chưa hoàn thiện -> báo dev sửa, quay lại B3
-- [ ] B6: Nếu tất cả pass -> xuất Excel bàn giao
-- [ ] B7: (Tùy chọn) Comment kết quả + đính kèm Excel lên Jira
+- [ ] B0: Bootstrap → reference.local.md (lần đầu)
+- [ ] B1: Đọc yêu cầu (nếu có) + xác định feature
+- [ ] B2: Codegraph lấy code liên quan (không đọc cả project)
+- [ ] B2.5: Gap hunt — checklist rủi ro + liệt kê verified vs gap
+- [ ] B3: Viết test verified + cases.json (cả verified lẫn gap)
+- [ ] B4: Chạy test verified → results.json
+- [ ] B4b: Validate schema + alignment (verified bắt buộc có kết quả)
+- [ ] B5: Verified fail → báo dev; Gap → báo riêng (không chặn bàn giao)
+- [ ] B6: Verified đều pass → Excel 2 sheet + (tuỳ chọn) report_gaps.py
+- [ ] B7: (Tuỳ chọn) Jira comment + đính kèm Excel
 ```
 
-### B0: Bootstrap (chỉ lần đầu mỗi project)
+### B0: Bootstrap (chỉ lần đầu)
 
-Nếu đã có `.cursor/skills/self-test-cases/reference.local.md` → đọc nó rồi bỏ qua B0.
-
-Nếu chưa có, hãy detect và GHI vào `reference.local.md` (copy từ
-[reference.template.md](reference.template.md) rồi điền):
-- Ngôn ngữ + test framework (pytest / jest / vitest / go test / JUnit / Playwright / Remix...).
-- Lệnh chạy test + cách xuất report và convert sang `results.json`.
-- Cách khởi tạo app/server để test (app factory, TestClient, supertest, MockMvc...).
-- Kiến trúc tầng: router/controller → service → repository → DB client.
-- Auth/middleware và cách override/mock trong test.
-- Các kết nối ngoài (SQL/Mongo/Redis/HTTP) và cách mock để KHÔNG chạm thật.
-- Thư mục test chuẩn của project (để tham khảo pattern) + **sandbox skill**:
-  luôn ghi artifact vào `.cursor/skills/self-test-cases/workdir/` (không ghi ra gốc project).
-- File config/fixture có sẵn của project (đọc để học pattern; không sửa trừ khi user yêu cầu).
-
-Cài dependency cho script (chỉ cần lần đầu, dùng `--user` để không lẫn vào
-venv/app dependency của project):
+Nếu đã có `reference.local.md` → đọc rồi bỏ qua B0.
+Nếu chưa: copy [reference.template.md](reference.template.md) → điền stack,
+lệnh test, mock, kiến trúc. Cài:
 
 ```bash
 pip install --user -r .cursor/skills/self-test-cases/scripts/requirements.txt
-# Tùy chọn nếu dùng Jira:
-# pip install --user -r .cursor/skills/self-test-cases/scripts/requirements-jira.txt
 ```
 
-Nếu CodeGraph chưa sẵn sàng (không có CLI, hoặc `.codegraph/` trống / chỉ có
-`.gitignore`):
-
-1. **Hỏi user** có muốn agent cài/index giúp không.
-2. Nếu user đồng ý, agent ĐƯỢC phép chạy (theo OS):
-   - Windows: `irm https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.ps1 | iex`
-   - macOS/Linux: `curl -fsSL https://raw.githubusercontent.com/colbymchenry/codegraph/main/install.sh | sh`
-   - Hoặc: `npm i -g @colbymchenry/codegraph`
-   - Sau đó: `codegraph install --target=cursor --yes`
-   - Trong project: `codegraph init` (hoặc `codegraph index` nếu đã init nhưng chưa index)
-3. Báo user **restart Cursor** nếu vừa `codegraph install` lần đầu.
-4. Nếu user từ chối / chưa kịp: fallback đọc file liên quan trực tiếp
-   (KHÔNG đọc cả project). Không block workflow.
+CodeGraph chưa sẵn sàng → hỏi user có muốn cài/index; đồng ý thì chạy installer
+CodeGraph + `codegraph init`/`index`; từ chối → fallback đọc file liên quan.
 
 ### B1: Đọc yêu cầu
 
-Dev paste mô tả tính năng. Xác định: endpoint/service/module liên quan; các nhánh
-logic (happy path, validate lỗi, phân quyền, edge case); kết quả mong đợi từng
-nhánh. Yêu cầu mơ hồ → HỎI dev trước khi viết.
+Xác định endpoint/module, nhánh mong muốn. Yêu cầu mơ hồ → HỎI trước.
+Thiếu yêu cầu nhưng có code → vẫn làm được: lấy hành vi từ code + gap hunt.
 
-### B2: Dùng codegraph lấy context (ưu tiên)
+### B2: Context (codegraph-first)
 
-Query symbol liên quan (service/repository/router/model) thay vì đọc cả project.
+Query symbol liên quan. Không đọc cả project.
 
-Nếu chưa có CodeGraph / index:
-- Hỏi user có muốn cài/index giúp (xem B0).
-- User đồng ý → chạy lệnh cài + `codegraph init`/`index`, rồi dùng codegraph.
-- User từ chối hoặc CLI chưa vào PATH trong session hiện tại → fallback đọc
-  file liên quan trực tiếp (không đọc cả project).
+### B2.5: Gap hunt (QUAN TRỌNG)
 
-Chỉ đọc file trực tiếp khi codegraph không đủ context.
+1. Liệt kê những gì code **đang** validate/nhánh `if`/permission/lock.
+2. Chạy checklist “không thể ngờ tới” ở trên.
+3. Mỗi mục checklist mà code **không** xử lý → draft case `gap` với
+   `code_evidence` (file/symbol/điều thiếu) + `risk` + `priority`.
+4. Những nhánh code **đã** có → sẽ thành `verified` ở B3.
+5. Không chắc expected đúng/sai → `needs-product-decision`, hỏi user/PO.
 
-### B3: Viết test-case
+In tóm tắt cho user trước khi viết test hàng loạt:
+`Verified dự kiến: N | Gap dự kiến: M (P0: …)`.
 
-**QUAN TRỌNG - sandbox bắt buộc (tránh commit nhầm vào project):**
+### B3: Viết test + cases.json
 
-- Mọi artifact skill sinh ra PHẢI nằm trong:
-  `.cursor/skills/self-test-cases/workdir/`
-- Cấu trúc khuyến dùng:
-  ```
-  .cursor/skills/self-test-cases/workdir/
-  ├── tests/<feature>/          # test files + cases.json
-  ├── results.json              # kết quả chuẩn (tạm)
-  ├── pytest.ini / vitest config (NẾU cần)  # chỉ trong workdir
-  └── .selftest_tmp/            # Excel tạm
-  ```
-- **CẤM** tạo/sửa ở gốc project trừ khi user **chủ động yêu cầu** promote:
-  - `tests/` (ngoài workdir)
-  - `pytest.ini`, `conftest.py` ở root
-  - `package.json` / jest / vitest config của project
-- Khi chạy test: LUÔN chạy từ **gốc project** (không `cd` vào workdir), chỉ trỏ
-  path test vào workdir. Import code app qua `PYTHONPATH`/pythonpath trỏ về gốc project.
+Sandbox bắt buộc dưới `workdir/` (xem artifact map). Chạy test từ **gốc project**.
 
-**LƯU Ý pytest (tránh lỗi import / rootdir):**
-- Cần cài plugin: `pip install --user pytest-json-report` (hoặc dùng venv của project).
-- KHÔNG đặt `pytest.ini` ở gốc project. Nếu cần config, đặt trong `workdir/`
-  NHƯNG phải set `pythonpath` trỏ về gốc project, vì `pytest.ini` sẽ đổi `rootdir`.
-- An toàn nhất: không dùng `pytest.ini`, truyền cờ trực tiếp và ép rootdir về gốc project.
-- Test id (nodeid) = **đường dẫn tính từ cwd** (gốc project). Vì test nằm trong
-  workdir nên nodeid sẽ có tiền tố `.cursor/skills/self-test-cases/workdir/...`.
-  `cases.json` PHẢI dùng đúng nodeid này (verbatim), nếu không validate/export fail.
+**Verified:**
+- Viết test framework của project, mock hạ tầng thật.
+- Key = test id thật (pytest nodeid có tiền tố workdir…).
+- `coverage: "verified"`.
 
-Ví dụ pytest (chạy từ gốc project):
+**Gap:**
+- Ưu tiên ghi `gap:<case_id>` trong `cases.json` **không bắt buộc** có file test.
+- Nếu viết được test chứng minh thiếu xử lý (fail có chủ đích) → vẫn để
+  `coverage: "gap"`; fail **không** chặn Excel.
+- `steps`/`data`/`expected`/`tester_note` phải tester đọc là làm được (đủ
+  method, URL, body; không `...`).
+
+Pytest (từ gốc project):
 
 ```bash
 WORKDIR=.cursor/skills/self-test-cases/workdir
-pytest $WORKDIR/tests/<feature> \
-  --rootdir=. -o pythonpath=. \
+pytest $WORKDIR/tests/<feature> --rootdir=. -o pythonpath=. \
   --json-report --json-report-file=$WORKDIR/.report.json
 ```
 
-- Viết test theo đúng framework + pattern mock trong `reference.local.md`. Mỗi
-  test PHẢI mock, KHÔNG chạm DB/hạ tầng thật. Bao phủ đầy đủ nhánh: happy path +
-  lỗi validate + phân quyền + edge case.
-- Song song, tạo `cases.json` **cạnh test trong workdir**, KHÓA theo **test id**
-  (nodeid pytest / fullName vitest / package::Test go / class::method JUnit...).
-  Test id phải TRÙNG verbatim với id do framework sinh ra.
-  Schema: [schemas/cases.schema.json](schemas/cases.schema.json). Mẫu:
-  [templates/cases.example.json](templates/cases.example.json).
+### B4 → results.json
 
-`cases.json` khóa theo test id, mỗi case gồm: `case_id`, `description`,
-`precondition`, `steps` (list), `data`, `expected`.
+Chỉ **bắt buộc** có kết quả cho mọi case `verified`. Convert bằng
+`scripts/convert_results.py` vào `workdir/results.json`.
 
-QUAN TRỌNG - `steps`/`data`/`expected` phải TESTER-FRIENDLY (người test đọc là làm
-được ngay):
-- Viết ĐẦY ĐỦ đường dẫn endpoint, method và body. KHÔNG dùng `...` để rút gọn.
-- Nếu dùng ID ví dụ (vd `cfg-1`), chú thích rõ đó là gì + cách thay bằng giá trị thật.
-- `expected`: nếu trả HTTP lỗi thì ghi rõ status code + nội dung message thật.
-
-### B4: Self-test → results.json chuẩn
-
-Chạy test từ **gốc project** (test files nằm trong `workdir/`), rồi tạo
-`results.json` theo ĐỊNH DẠNG CHUẨN dưới:
-`.cursor/skills/self-test-cases/workdir/results.json`.
-Schema: [schemas/results.schema.json](schemas/results.schema.json).
-
-```json
-{
-  "<test id 1>": "passed",
-  "<test id 2>": "failed"
-}
-```
-
-Giá trị hợp lệ: `passed` | `failed` | `error` | `skipped`.
-
-**Convert từ report framework** (khuyến dùng; mọi path dưới `workdir/`):
-
-```bash
-WORKDIR=.cursor/skills/self-test-cases/workdir
-
-# Python + pytest
-pytest $WORKDIR/tests/<feature> -o pythonpath=. \
-  --json-report --json-report-file=$WORKDIR/.report.json
-python .cursor/skills/self-test-cases/scripts/convert_results.py \
-  --framework pytest --input $WORKDIR/.report.json --output $WORKDIR/results.json
-
-# Vitest / Jest
-npx vitest run $WORKDIR/tests/<feature> --reporter=json --outputFile=$WORKDIR/.vitest-report.json
-python .cursor/skills/self-test-cases/scripts/convert_results.py \
-  --framework vitest --input $WORKDIR/.vitest-report.json --output $WORKDIR/results.json
-
-# Remix / Playwright / Go / Spring: tương tự — report + results.json đều trong workdir
-```
-
-### B4b: Validate (khuyến dùng)
+### B4b: Validate
 
 ```bash
 python .cursor/skills/self-test-cases/scripts/validate_test_cases.py \
@@ -255,16 +180,23 @@ python .cursor/skills/self-test-cases/scripts/validate_test_cases.py \
   --results .cursor/skills/self-test-cases/workdir/results.json
 ```
 
-### B5: Nếu còn lỗi → báo dev
+(Gap thiếu trong results là OK.)
 
-Nếu bất kỳ case fail/error, HOẶC test chưa bao phủ hết nhánh:
-- Liệt kê từng case lỗi: test id + case_id + lý do (assert nào, exception gì).
-- Bug code → mô tả rõ để dev sửa. Test thiếu case → bổ sung.
-- KHÔNG xuất Excel. Quay lại B3 đến khi tất cả pass.
+### B5: Báo cáo
 
-### B6: Xuất Excel bàn giao (chỉ khi tất cả pass)
+- **Verified fail** → liệt kê case_id + lý do; **KHÔNG** Excel; quay B3/dev sửa code hoặc sửa test.
+- **Gap** → liệt kê riêng cho tester/dev (“code chưa check”); **không** block B6.
 
-Xuất ra file TẠM trong workdir (KHÔNG lưu ở gốc project):
+```bash
+python .cursor/skills/self-test-cases/scripts/report_gaps.py \
+  --cases .cursor/skills/self-test-cases/workdir/tests/<feature>/cases.json \
+  --results .cursor/skills/self-test-cases/workdir/results.json \
+  --json-out .cursor/skills/self-test-cases/workdir/.selftest_tmp/gaps_<feature>.json
+```
+
+### B6: Excel bàn giao
+
+Gate: mọi `verified` = `passed`. Gap không cần pass.
 
 ```bash
 python .cursor/skills/self-test-cases/scripts/export_test_cases.py \
@@ -273,43 +205,35 @@ python .cursor/skills/self-test-cases/scripts/export_test_cases.py \
   --out .cursor/skills/self-test-cases/workdir/.selftest_tmp/handover_<feature>.xlsx
 ```
 
-Script tự chặn (exit code 2) nếu còn case chưa pass → không tạo file. File Excel
-có cột tiếng Việt: `Mã case`, `Mô tả`, `Điều kiện tiên đề`, `Các bước`,
-`Dữ liệu`, `Kết quả mong đợi`, `Kết quả thực tế`, `Trạng thái`.
+Excel có 2 sheet:
+- **Đã verify** — case code đã xử lý, đã chạy test tự động và **pass**. Tester dùng làm checklist regression.
+- **Gap - Rủi ro** — case **có thể xảy ra** nhưng code **chưa check** (hoặc chưa rõ expected). Không phải “fail test”; đây là danh sách rủi ro để tester kiểm tra tay + dev bổ sung xử lý. Kèm bằng chứng code, ghi chú tester, mức ưu tiên.
 
-### B7: (Tùy chọn) Comment kết quả lên Jira
+Cột **Phân loại** trên Excel ghi tiếng Việt có dấu (`Lỗ hổng`, `Khám phá`, `Chờ quyết định`). Trong `cases.json` vẫn dùng enum máy: `gap` / `exploratory` / `needs-product-decision`.
 
-Chỉ chạy khi dev cung cấp issue key và đã cấu hình credentials Jira trong `.env`.
-Script tự chặn nếu còn case fail (exit 2).
+### B7: Jira (tuỳ chọn)
 
-Env cần có (KHÔNG hardcode, KHÔNG commit): `JIRA_BASE_URL`, `JIRA_AUTH_MODE`
-(`bearer` cho PAT Server/DC, `basic` cho Cloud/user-pass), `JIRA_TOKEN`, và
-`JIRA_USER` (chỉ khi mode `basic`).
+Cùng gate verified. Comment nêu số gap + danh sách mã case gap.
 
-```bash
-# Kiểm tra kết nối + nhận diện loại Jira:
-python .cursor/skills/self-test-cases/scripts/jira_notify.py --check
+## Ma trận framework
 
-# Comment + đính kèm Excel:
-python .cursor/skills/self-test-cases/scripts/jira_notify.py \
-  --issue <ISSUE_KEY> \
-  --results .cursor/skills/self-test-cases/workdir/results.json \
-  --cases .cursor/skills/self-test-cases/workdir/tests/<feature>/cases.json \
-  --xlsx .cursor/skills/self-test-cases/workdir/.selftest_tmp/handover_<feature>.xlsx \
-  --feature <feature>
-```
+| Nhóm | Framework | Adapter |
+|------|-----------|---------|
+| Python | pytest | `pytest` |
+| Node | jest / vitest | `jest` / `vitest` |
+| Remix | vitest + Playwright | `remix` |
+| E2E | Playwright | `playwright` |
+| Go | go test | `go` |
+| Java | Spring Boot + JUnit | `spring-boot` / `junit` |
 
-Sau khi đính kèm thành công lên Jira, XÓA file tạm trong
-`.cursor/skills/self-test-cases/workdir/.selftest_tmp/`.
+Mẫu: [templates/cases.example.json](templates/cases.example.json),
+[templates/results.example.json](templates/results.example.json).
 
 ## Nguyên tắc
 
-- Portable: không hardcode framework/path; chi tiết project nằm trong `reference.local.md`.
-- **Sandbox**: mọi test/cases/results/Excel sinh bởi skill nằm trong
-  `.cursor/skills/self-test-cases/workdir/` — không ghi ra gốc project (tránh commit nhầm).
-- Codegraph-first, đọc file là phương án cuối → giảm token.
-- Test không chạm DB/hạ tầng thật (luôn mock).
-- Excel chỉ xuất khi 100% pass (gate cứng).
+- Gap-hunt trước, automate sau — đừng chỉ mirror code hiện tại.
+- Sandbox trong skill folder; không commit skill/workdir.
+- Mock hạ tầng thật khi chạy verified.
+- Excel/Jira chỉ khi mọi **verified** pass; gap vẫn nằm trong bàn giao.
 - Ngôn ngữ case/Excel: tiếng Việt.
-- Không commit file `.xlsx` / `.env` / credentials / `workdir/`.
-- Validate `cases.json` và `results.json` theo schema trước khi export.
+- Codegraph-first; validate schema trước khi export.

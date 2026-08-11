@@ -1,5 +1,5 @@
 {
-  "__NOTE__": "Key la TEST ID theo framework: pytest nodeid tinh tu cwd (goc project). Vi test nam trong workdir nen nodeid gom ca duong dan .cursor/skills/self-test-cases/workdir/. Key nay PHAI trung key trong results.json. Xoa dong __NOTE__ khi dung that.",
+  "__NOTE__": "Key verified = test id framework. Key gap chua automate = gap:<case_id>. Xoa __NOTE__ khi dung that.",
   ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_success": {
     "case_id": "TC-01",
     "description": "Đăng ký học sinh thành công khi đủ điều kiện",
@@ -12,7 +12,10 @@
       "examination_user_number": "123456",
       "image_url": "https://example.com/a.png"
     },
-    "expected": "HTTP 200, status=1, success=true, trả về data đã cập nhật"
+    "expected": "HTTP 200, status=1, success=true, trả về data đã cập nhật",
+    "coverage": "verified",
+    "category": "happy",
+    "priority": "P0"
   },
   ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_missing_token": {
     "case_id": "TC-02",
@@ -22,6 +25,49 @@
       "Gửi PUT /api/v1/users/sign_up/ không có header tnv-token"
     ],
     "data": "Header tnv-token: (không có)",
-    "expected": "HTTP 400, success=false, messenger='Bắt buộc phải truyền tnv-token'"
+    "expected": "HTTP 400, success=false, messenger='Bắt buộc phải truyền tnv-token'",
+    "coverage": "verified",
+    "category": "auth",
+    "priority": "P0"
+  },
+  "gap:TC-03": {
+    "case_id": "TC-03",
+    "description": "Gửi đăng ký 2 lần liên tiếp (double-submit) — code chưa thấy chặn idempotent",
+    "precondition": "Học sinh đủ điều kiện; lần 1 đã thành công",
+    "steps": [
+      "Gửi PUT /api/v1/users/sign_up/ lần 1 với payload hợp lệ → 200",
+      "Ngay sau đó gửi lại ĐÚNG payload lần 2 (không đổi token/body)"
+    ],
+    "data": {
+      "examination_user_number": "123456",
+      "image_url": "https://example.com/a.png"
+    },
+    "expected": "Lần 2 phải bị từ chối rõ ràng (đã đăng ký) hoặc trả cùng kết quả idempotent — KHÔNG tạo side-effect kép",
+    "coverage": "gap",
+    "category": "race",
+    "priority": "P0",
+    "code_evidence": "SignUpService.register: không thấy khóa theo user_id / kiểm tra đã đăng ký trước khi ghi",
+    "tester_note": "Trên môi trường thật: bấm Đăng ký 2 lần nhanh hoặc replay cùng request bằng Postman",
+    "risk": "Có thể ghi trùng / ghi đè dữ liệu / gửi thông báo 2 lần"
+  },
+  "gap:TC-04": {
+    "case_id": "TC-04",
+    "description": "Payload thiếu image_url hoặc image_url rỗng — chưa rõ code validate",
+    "precondition": "Token hợp lệ; các field khác đủ",
+    "steps": [
+      "Gửi PUT /api/v1/users/sign_up/ với image_url = \"\"",
+      "Gửi lại với body không có field image_url"
+    ],
+    "data": {
+      "examination_user_number": "123456",
+      "image_url": ""
+    },
+    "expected": "HTTP 4xx + message rõ ràng; không lưu bản ghi nửa vời",
+    "coverage": "gap",
+    "category": "validate",
+    "priority": "P1",
+    "code_evidence": "Schema/DTO sign_up: chưa thấy required/minLength cho image_url",
+    "tester_note": "Thử cả null, chuỗi chỉ khoảng trắng, URL không phải http(s)",
+    "risk": "Lưu dữ liệu thiếu ảnh → lỗi bước sau hoặc UI vỡ"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "__NOTE__": "Key PHAI trung test id trong cases.json. Gia tri: passed|failed|error|skipped. Xoa dong __NOTE__ khi dung that.",
+  "__NOTE__": "Chi can co ket qua cho case VERIFIED. Gap co the thieu trong results. Xoa __NOTE__ khi dung that.",
   ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_success": "passed",
   ".cursor/skills/self-test-cases/workdir/tests/register/test_register.py::test_register_missing_token": "passed"
 }

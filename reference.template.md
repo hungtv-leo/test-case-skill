@@ -53,12 +53,21 @@ Framework khác: thêm adapter mới hoặc tự tổng hợp `results.json` the
 
 ---
 
-## 3. Quy ước test id & naming
+## 3. Quy ước test id, coverage & naming
 
-- Test id trong `cases.json` **PHẢI trùng** key trong `results.json`.
-- Đặt tên test rõ ràng theo nhánh logic: `test_<action>_<condition>`.
-- Mỗi nhánh logic quan trọng = 1 test id riêng (happy path, validate lỗi, phân quyền, edge case).
-- Không dùng key metadata dạng `__NOTE__` trong file production (chỉ dùng ở file mẫu).
+- Case `verified`: key trong `cases.json` **PHẢI trùng** test id trong `results.json`.
+- Case `gap` / `exploratory` / `needs-product-decision`: key khuyến dùng `gap:<case_id>`
+  (không bắt buộc có trong results). Bắt buộc có `code_evidence` + `risk`.
+- Đặt tên test verified: `test_<action>_<condition>`.
+- Mỗi nhánh đã có trong code = 1 verified; mỗi rủi ro checklist mà code thiếu = 1 gap.
+- Không dùng key `__NOTE__` trong file production (chỉ ở file mẫu).
+- Field `coverage` bắt buộc. Khuyến dùng `category`, `priority` (P0–P3), `tester_note`.
+
+### Gap hunt (nhắc nhanh)
+
+Sau khi đọc code tính năng: liệt kê điều code đang check → chạy checklist
+input bẩn / boundary / state / auth / race / dependency / side-effect → case thiếu
+thành `gap` (không chỉ viết test mirror behavior hiện tại).
 
 ---
 

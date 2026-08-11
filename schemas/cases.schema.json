@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://self-test-cases.local/schemas/cases.schema.json",
   "title": "cases.json",
-  "description": "Metadata test case cho skill self-test-cases. Key la test id theo framework.",
+  "description": "Metadata test case cho skill self-test-cases. Key la test id (verified) hoac gap:<case_id> (gap chua automate).",
   "type": "object",
   "minProperties": 1,
   "patternProperties": {
@@ -12,7 +12,7 @@
     },
     "^(?!__.*__$).+$": {
       "type": "object",
-      "required": ["case_id", "description", "precondition", "steps", "expected"],
+      "required": ["case_id", "description", "precondition", "steps", "expected", "coverage"],
       "additionalProperties": false,
       "properties": {
         "case_id": {
@@ -52,8 +52,56 @@
           "type": "string",
           "minLength": 1,
           "description": "Ket qua mong doi, ghi ro status/message neu la loi"
+        },
+        "coverage": {
+          "type": "string",
+          "enum": ["verified", "gap", "exploratory", "needs-product-decision"],
+          "description": "verified = code da check + co test tu dong; gap/exploratory/needs-product-decision = case co the xay ra ma code chua xu ly / can tester"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "happy",
+            "validate",
+            "auth",
+            "state",
+            "race",
+            "boundary",
+            "side-effect",
+            "dependency",
+            "other"
+          ],
+          "description": "Nhom rui ro / loai case"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["P0", "P1", "P2", "P3"],
+          "description": "Do uu tien cho tester/dev"
+        },
+        "code_evidence": {
+          "type": "string",
+          "description": "Bang chung trong code: file/symbol/nhanh chua check gi"
+        },
+        "tester_note": {
+          "type": "string",
+          "description": "Huong dan tester tai hien tren moi truong that (khong mock)"
+        },
+        "risk": {
+          "type": "string",
+          "description": "Hau qua neu bo sot case nay"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "coverage": { "enum": ["gap", "exploratory", "needs-product-decision"] } },
+            "required": ["coverage"]
+          },
+          "then": {
+            "required": ["code_evidence", "risk"]
+          }
+        }
+      ]
     }
   },
   "additionalProperties": false

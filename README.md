@@ -1,10 +1,13 @@
 # self-test-cases (portable Cursor skill)
 
-A Cursor Agent Skill that helps developers on **any project**: read a feature
-requirement → write test cases using the project's own test framework →
-self-test → report failures if any case fails → when 100% pass, export an Excel
-handover file for testers → (optional) comment results and attach the Excel file
-to Jira.
+A Cursor Agent Skill that helps developers on **any project**: read new feature
+code (and the requirement if available) → hunt scenarios that can happen but the
+code does **not** check yet → auto-verify covered branches → when all **verified**
+cases pass, export an Excel handover for testers with **two sheets** (Verified +
+Gaps/Risks) → (optional) comment results and attach the Excel file to Jira.
+
+This is **not** about code-quality self-test or chasing coverage %. It is about
+finding real-world cases (including surprising ones) and handing them to testers.
 
 Portable: not tied to any single framework. Project-specific details are detected
 on the first run and cached in `reference.local.md`.
@@ -326,9 +329,10 @@ First run will:
 
 1. Detect stack / framework
 2. Create `reference.local.md`
-3. Write tests + `cases.json` under `workdir/`
-4. Self-test → `results.json`
-5. Export Excel only if **100% pass**
+3. **Gap-hunt** unchecked scenarios from feature code
+4. Write verified tests + `cases.json` (verified + gap) under `workdir/`
+5. Self-test verified cases → `results.json`
+6. Export Excel (2 sheets) when all **verified** cases pass (gaps do not block)
 
 ### Step 9 — Update the skill later
 
@@ -362,7 +366,8 @@ Everything the skill creates stays inside the skill folder (not project root):
     ├── .report.json
     ├── results.json
     └── .selftest_tmp/
-        └── handover_<feature>.xlsx
+        ├── handover_<feature>.xlsx   # sheets: Đã verify + Gap - Rủi ro
+        └── gaps_<feature>.json       # optional gap report
 ```
 
 The skill must **not** create `tests/`, `pytest.ini`, `results.json`, or
@@ -408,12 +413,14 @@ self-test-cases/
 ├── scripts/
 │   ├── convert_results.py      # framework adapter -> results.json
 │   ├── validate_test_cases.py  # validate cases/results + alignment
-│   ├── export_test_cases.py    # Excel export, 100% pass gate
+│   ├── export_test_cases.py    # Excel 2 sheets; gate = verified pass
+│   ├── report_gaps.py          # summarize gap/risk cases
 │   ├── jira_notify.py          # comment + attachment to Jira
 │   ├── requirements.txt        # core deps only
 │   └── requirements-jira.txt   # optional Jira deps
 ├── templates/
-│   ├── cases.example.json      # sample case metadata (keyed by test id)
+│   ├── cases.example.json      # sample verified + gap cases
+│   └── results.example.json    # sample results (verified only)
 │   └── results.example.json    # sample results.json format
 └── workdir/                    # runtime sandbox (gitignored except README)
     └── README.md
