@@ -1,3 +1,7 @@
-# Optional: only if you use jira_notify.py
+# Optional: only if you use jira_notify.py AND the app venv does not already
+# have `requests`. Do NOT install this file if it would upgrade app packages.
+#
+# python-dotenv is optional: jira_notify.py parses .env itself when missing.
+# Do not pin python-dotenv>=1.0 — that upgrades venvs (e.g. schema-registry
+# needs python-dotenv<0.20).
 requests>=2.31
-python-dotenv>=1.0

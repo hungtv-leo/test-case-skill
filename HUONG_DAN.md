@@ -124,19 +124,30 @@ Nhìn prompt terminal: có `(.venv)` hay không.
 ERROR: Can not perform a '--user' install. User site-packages are not visible in this virtualenv.
 ```
 
-Đừng `deactivate`. Chạy đúng:
+Đừng `deactivate`. **Chỉ cài file core** (Excel + validate):
 
 ```powershell
 pip install -r .cursor\skills\self-test-cases\scripts\requirements.txt
 ```
 
-Jira (nếu dùng):
+`.venv` đã gitignore — gói nằm local trên máy, không commit vào lockfile app. Agent sau này cũng dùng Python của venv nên **phải** cài `openpyxl` / `jsonschema` vào đây.
+
+**Jira — đừng cài `requirements-jira.txt` vào venv app.** App Python thường đã có `requests`. Script Jira tự parse `.env`, không cần nâng `python-dotenv`. Cài file đó dễ đụng package app (vd. `schema-registry` cần `python-dotenv<0.20`).
+
+Kiểm tra trước:
 
 ```powershell
-pip install -r .cursor\skills\self-test-cases\scripts\requirements-jira.txt
+python -c "import requests; print('requests', requests.__version__)"
+python -c "import dotenv; print('dotenv ok')"
 ```
 
-`.venv` đã gitignore — gói nằm local trên máy, không commit vào lockfile app. Agent sau này cũng dùng Python của venv nên **phải** cài vào đây, nếu không `export_test_cases.py` sẽ thiếu `openpyxl`.
+Cả hai import được → **bỏ qua** `requirements-jira.txt`. Script Jira tự parse `.env` nếu thiếu `python-dotenv`.
+
+Nếu đã lỡ nâng và pip báo conflict, trả về bản app đang dùng:
+
+```powershell
+pip install "python-dotenv>=0.19,<0.20"
+```
 
 **B. Không dùng venv — mới dùng `--user`**
 
@@ -516,6 +527,7 @@ codegraph upgrade
 | `irm \| iex` bị chặn | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 | `python` / `pip` không nhận, hoặc sai version | `py -3 --version` phải ≥ 3.10; không venv thì `py -3 -m pip install --user ...` |
 | `Can not perform a '--user' install` | Prompt đang `(.venv)` → bỏ `--user`: `pip install -r ...\scripts\requirements.txt` |
+| `schema-registry ... python-dotenv` incompatible | Đã cài nhầm `requirements-jira.txt`. Chạy `pip install "python-dotenv>=0.19,<0.20"`. App đã có `requests` thì không cần file Jira |
 | `codegraph` không có lệnh | Chạy lại installer CodeGraph; **mở terminal mới**; `codegraph --version` |
 | CodeGraph “chỉ `.gitignore`” / chưa index | `codegraph index` (hoặc `codegraph init`) tại gốc app |
 | CodeGraph MCP chưa nối trong Cursor | `codegraph install --target=cursor --yes`, restart Cursor |
